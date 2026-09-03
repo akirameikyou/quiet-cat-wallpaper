@@ -109,24 +109,24 @@ function poseWalk(x,groundY,s,dir,now,fast){ const w=fast?now/230:now/470; const
     tailA:d2r(fast?-24:-12)+Math.sin(w*0.5)*d2r(5), dy:-Math.abs(Math.sin(w))*(fast?3:1.4)*s }); }
 function poseSit(x,groundY,s,dir,now){ const w=now/700; const bl=Math.sin(w*1.7)>0.93?1:0;
   drawNeko(x,groundY,s,dir,{ frontA:d2r(96), backA:d2r(84), tailA:d2r(-3)+Math.sin(w*0.6)*d2r(4), blink:bl }); }
-// 寝る：正面を向いて目を閉じた丸まりロール（neko-3準拠／鼻なし・閉じ目の横棒2本）
+// 寝る：正面・目を閉じた丸まりロール（neko-3準拠／目は広め・胴は小さめ・鼻なし）
 function poseSleep(x,groundY,s,dir,now){ const w=now/2400; const breath=1+Math.sin(w)*0.02;
   ctx.save(); ctx.translate(x,groundY); ctx.scale(s, s); // 正面（左右反転しない）
-  // 体（ロール状・呼吸でわずかに上下）
-  ctx.save(); ctx.translate(0,-14); ctx.scale(1,breath);
-  ctx.fillStyle=pal.body; rr(-34,-16,34,16,16); ctx.restore();
-  // 前足を軽く前にたたむ
-  ctx.strokeStyle=pal.legs; ctx.lineWidth=9; ctx.lineCap="round";
-  ctx.beginPath(); ctx.moveTo(4,-4); ctx.lineTo(24,0); ctx.stroke();
-  // 頭
-  ctx.fillStyle=pal.head; ctx.beginPath(); ctx.arc(0,-40,24,0,7); ctx.fill();
+  // 体（小さめのロール・呼吸でわずかに上下）
+  ctx.save(); ctx.translate(0,-9); ctx.scale(1,breath);
+  ctx.fillStyle=pal.body; rr(-24,-10,24,10,10); ctx.restore();
+  // 前足を軽くたたむ
+  ctx.strokeStyle=pal.legs; ctx.lineWidth=8; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(3,-4); ctx.lineTo(21,-1); ctx.stroke();
+  // 頭（大きめ）
+  ctx.fillStyle=pal.head; ctx.beginPath(); ctx.arc(0,-38,24,0,7); ctx.fill();
   // 耳
-  ctx.beginPath();ctx.moveTo(-18,-54);ctx.lineTo(-16,-72);ctx.lineTo(-2,-58);ctx.closePath();ctx.fill();
-  ctx.beginPath();ctx.moveTo(2,-58);ctx.lineTo(16,-72);ctx.lineTo(18,-54);ctx.closePath();ctx.fill();
-  // 閉じた目（横棒2本）
-  ctx.strokeStyle=pal.eye; ctx.lineWidth=2.6; ctx.lineCap="round";
-  ctx.beginPath(); ctx.moveTo(-13,-42); ctx.lineTo(-5,-42); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(5,-42); ctx.lineTo(13,-42); ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-18,-52);ctx.lineTo(-16,-70);ctx.lineTo(-2,-56);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(2,-56);ctx.lineTo(16,-70);ctx.lineTo(18,-52);ctx.closePath();ctx.fill();
+  // 閉じた目（間隔を広く）
+  ctx.strokeStyle=pal.eye; ctx.lineWidth=2.8; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(-17,-40); ctx.lineTo(-9,-40); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(9,-40); ctx.lineTo(17,-40); ctx.stroke();
   ctx.restore();
 }
 function poseStretch(x,groundY,s,dir,p,now){ const a=Math.sin(p*Math.PI);
@@ -149,20 +149,20 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function ease(t){t=clamp(t,0,1);return t*t*(3-2*t);}
 function pushWalk(tx){queue.push({type:'walk',toX:tx});}
 function cornerX(){ return Math.random()<0.5 ? W*0.12 : W*0.88; }
-function restAtCorner(){ if(Math.random()<0.4) queue.push({type:'sleep',dur:14+Math.random()*10}); else queue.push({type:'sit',dur:10+Math.random()*9}); }
+function restAtCorner(){ if(Math.random()<0.28) queue.push({type:'sleep',dur:14+Math.random()*10}); else queue.push({type:'sit',dur:10+Math.random()*9}); }
 function plan(){
   const s=S(), pad=140*s;
   if(cat.x<-pad+5||cat.x>W+pad-5){ const cxr=cornerX();
     queue.push({type:'enter',toX:cxr}); restAtCorner(); return; }
   const k=Math.random();
-  if(k<0.46){ // 基本：隅に座る／ときどき寝る
+  if(k<0.56){ // 基本：隅に座る／ときどき寝る
     pushWalk(cornerX()); restAtCorner();
-  } else if(k<0.63){ // 顔だけのぞく
+  } else if(k<0.70){ // 顔だけのぞく→隅で座る
     const e=Math.random()<0.5; queue.push({type:'goEdge',right:e}); queue.push({type:'peek',dur:5,right:e});
-    queue.push({type:'enter',toX:cornerX()}); queue.push({type:'sit',dur:7+Math.random()*7});
-  } else if(k<0.80){ // 端で爪とぎ→座る
+    queue.push({type:'enter',toX:cornerX()}); queue.push({type:'sit',dur:9+Math.random()*7});
+  } else if(k<0.84){ // 端で爪とぎ→その場で座る
     const e=Math.random()<0.5; pushWalk(e?W*0.90:W*0.10); queue.push({type:'scratch',dur:5.5,right:e});
-    queue.push({type:'sit',dur:6+Math.random()*6});
+    queue.push({type:'sit',dur:8+Math.random()*6});
   } else if(k<0.91){ // トコトコ散歩→座る
     pushWalk(W*(0.2+Math.random()*0.6)); queue.push({type:'sit',dur:5+Math.random()*5});
   } else { // 走って横切る→隅で座る

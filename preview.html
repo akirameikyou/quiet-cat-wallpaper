@@ -69,7 +69,7 @@ function drawNeko(catX, groundY, s, dir, o){
   o=o||{};
   const frontA=o.frontA!=null?o.frontA:d2r(128);
   const backA =o.backA !=null?o.backA :d2r(60);
-  const bodyRot=o.bodyRot||0, blink=o.blink||0, headExtra=o.headExtra||0;
+  const bodyRot=o.bodyRot||0, blink=o.blink||0, headExtra=o.headExtra||0, tailA=o.tailA||0;
   const sx=catX - dir*s*222.9;
   const sy=groundY - s*210 + (o.dy||0);
   ctx.save();
@@ -77,13 +77,13 @@ function drawNeko(catX, groundY, s, dir, o){
   // 剛体の全身回転（爪とぎ/伸び用・比率は保つ）
   ctx.translate(235,208); ctx.rotate(bodyRot); ctx.translate(-235,-208);
 
-  // 尻尾（まっすぐ・剛体）
-  ctx.fillStyle=pal.tail; rr(258.6,181.77,287.12,188.07,3.15);
-  // 後脚（胴の後ろ）
-  legRod(Hb, backA, pal.legs, 7);
+  // 尻尾（まっすぐ・剛体・根元で上下に回るだけ／曲げない）
+  ctx.save(); ctx.translate(258.6,185); ctx.rotate(tailA); ctx.translate(-258.6,-185);
+  ctx.fillStyle=pal.tail; rr(258.6,181.77,287.12,188.07,3.15); ctx.restore();
   // 胴（歪めない）
   ctx.fillStyle=pal.body; rr(210.74,177.04,263.5,204.6,13.78);
-  // 前脚（胴の前）
+  // 手足（2本とも胴の前面に）
+  legRod(Hb, backA, pal.legs, 7);
   legRod(Hf, frontA, pal.legs, 7);
   // 頭
   ctx.save(); ctx.translate(0,headExtra);
@@ -103,22 +103,22 @@ function drawNeko(catX, groundY, s, dir, o){
 function d2r(d){return d*Math.PI/180;}
 
 // ===== poses set options; cat roams as before =====
-function poseWalk(x,groundY,s,dir,now){ const w=now/200;
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(120+Math.sin(w)*24), backA:d2r(60+Math.sin(w+Math.PI)*24),
-    dy:-Math.abs(Math.sin(w))*3*s }); }
+function poseWalk(x,groundY,s,dir,now){ const w=now/520; // ゆったり
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(120+Math.sin(w)*17), backA:d2r(62+Math.sin(w+Math.PI)*17),
+    tailA:d2r(-15)+Math.sin(w*0.5)*d2r(6), dy:-Math.abs(Math.sin(w))*2*s }); }
 function poseSit(x,groundY,s,dir,now){ const w=now/700; const bl=Math.sin(w*1.7)>0.93?1:0;
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(112), backA:d2r(66), blink:bl }); }
-function poseRest(x,groundY,s,dir,now){ const w=now/1400; const bl=(Math.sin(w)>-0.2)?1:0; // うとうと（ほぼ閉じ目）
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(110), backA:d2r(70), blink:bl }); }
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(112), backA:d2r(66), tailA:d2r(-4)+Math.sin(w*0.6)*d2r(4), blink:bl }); }
+function poseRest(x,groundY,s,dir,now){ const w=now/1400; const bl=(Math.sin(w)>-0.2)?1:0; // うとうと
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(110), backA:d2r(70), tailA:d2r(9), blink:bl }); }
 function poseStretch(x,groundY,s,dir,p,now){ const a=Math.sin(p*Math.PI);
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(128+a*40), backA:d2r(60-a*26), bodyRot:-0.10*a*dir, dy:a*4*s }); }
-function poseScratch(x,groundY,s,dir,now){ const w=now/150;
-  drawNeko(x,groundY,s,dir,{ bodyRot:-0.9*dir, frontA:d2r(-108+Math.sin(w)*20), backA:d2r(92) }); }
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(128+a*40), backA:d2r(60-a*26), tailA:d2r(-6-a*18), bodyRot:-0.10*a*dir, dy:a*4*s }); }
+function poseScratch(x,groundY,s,dir,now){ const w=now/300; // 研ぐ動作もゆっくりめ
+  drawNeko(x,groundY,s,dir,{ bodyRot:-0.9*dir, frontA:d2r(-108+Math.sin(w)*18), backA:d2r(92), tailA:d2r(-24) }); }
 function poseJump(x,groundY,s,dir,p){ const up=Math.sin(p*Math.PI)*80;
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(150), backA:d2r(34), bodyRot:-0.12*dir, dy:-up*s }); }
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(150), backA:d2r(34), tailA:d2r(-28), bodyRot:-0.12*dir, dy:-up*s }); }
 function posePeek(edgeRight,groundY,s,now){ const w=now/500; const dir=edgeRight?-1:1;
   const x = edgeRight? W - s*60 : s*60; // 頭だけ画面内、体は端の外へ
-  drawNeko(x, H*0.66, s, dir, { frontA:d2r(150), backA:d2r(70), dy:Math.sin(w)*3*s }); }
+  drawNeko(x, H*0.66, s, dir, { frontA:d2r(150), backA:d2r(70), tailA:d2r(-10), dy:Math.sin(w)*3*s }); }
 
 function hexA(hex,a){const n=parseInt(hex.slice(1),16);return`rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;}
 
@@ -143,9 +143,9 @@ function plan(){
   if(Math.random()<0.5) pushWalk(W*(0.15+Math.random()*0.7));
 }
 function start(){ cur=queue.shift(); t0=performance.now(); if(!cur)return; const s=S();
-  if(cur.type==='enter'){ cat.x=(Math.random()<0.5)?-140*s:W+140*s; cur.fromX=cat.x; cur.faceRight=cur.toX>cat.x; cat.faceRight=cur.faceRight; cur.dur=Math.max(0.6,Math.abs(cur.toX-cat.x)/(W*0.10)); cur.type='walk'; }
-  else if(cur.type==='walk'){ cur.fromX=cat.x; cur.faceRight=cur.toX>cat.x; cat.faceRight=cur.faceRight; cur.dur=Math.max(0.4,Math.abs(cur.toX-cat.x)/(W*0.10)); }
-  else if(cur.type==='goEdge'){ cur.fromX=cat.x; cur.toX=cur.right?W+150*s:-150*s; cur.faceRight=cur.right; cat.faceRight=cur.right; cur.dur=Math.max(0.6,Math.abs(cur.toX-cat.x)/(W*0.12)); }
+  if(cur.type==='enter'){ cat.x=(Math.random()<0.5)?-140*s:W+140*s; cur.fromX=cat.x; cur.faceRight=cur.toX>cat.x; cat.faceRight=cur.faceRight; cur.dur=Math.max(1.2,Math.abs(cur.toX-cat.x)/(W*0.045)); cur.type='walk'; }
+  else if(cur.type==='walk'){ cur.fromX=cat.x; cur.faceRight=cur.toX>cat.x; cat.faceRight=cur.faceRight; cur.dur=Math.max(1.0,Math.abs(cur.toX-cat.x)/(W*0.045)); }
+  else if(cur.type==='goEdge'){ cur.fromX=cat.x; cur.toX=cur.right?W+150*s:-150*s; cur.faceRight=cur.right; cat.faceRight=cur.right; cur.dur=Math.max(1.0,Math.abs(cur.toX-cat.x)/(W*0.05)); }
   else if(cur.type==='jump'){ cur.fromX=cat.x; cur.toX=clamp(cat.x+cur.dx,-20,W+20); cur.faceRight=cur.dx>0; cat.faceRight=cur.faceRight; }
   else if(cur.type==='scratch'){ cat.faceRight=cur.right; }
 }

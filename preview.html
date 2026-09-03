@@ -107,8 +107,32 @@ function d2r(d){return d*Math.PI/180;}
 function poseWalk(x,groundY,s,dir,now,fast){ const w=fast?now/230:now/470; const sw=fast?22:12; // トコトコ / 走り
   drawNeko(x,groundY,s,dir,{ frontA:d2r(96+Math.sin(w)*sw), backA:d2r(84-Math.sin(w)*sw),
     tailA:d2r(fast?-24:-12)+Math.sin(w*0.5)*d2r(5), dy:-Math.abs(Math.sin(w))*(fast?3:1.4)*s }); }
-function poseSit(x,groundY,s,dir,now){ const w=now/700; const bl=Math.sin(w*1.7)>0.93?1:0;
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(96), backA:d2r(84), tailA:d2r(-3)+Math.sin(w*0.6)*d2r(4), blink:bl }); }
+// 座る：股関節固定を外した専用ポーズ。後ろ足は胴に入り（お尻接地）、前足だけ下に踏ん張り、頭が上がる。
+function poseSit(x,groundY,s,dir,now){ const w=now/900; const bl=Math.sin(w*1.4)>0.95?1:0;
+  ctx.save(); ctx.translate(x,groundY); ctx.scale(dir*s, s);
+  // 尻尾（後ろから・まっすぐ）
+  ctx.strokeStyle=pal.tail; ctx.lineWidth=10; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(24,-8); ctx.lineTo(48,-14); ctx.stroke();
+  // お尻〜胴（斜めのかたまり・後ろが接地。後ろ足はこの中に隠れる）
+  ctx.save(); ctx.translate(4,-16); ctx.rotate(-0.5);
+  ctx.fillStyle=pal.body; rr(-30,-18,30,18,18); ctx.restore();
+  // 前足（前方でやや下に踏ん張る・ほぼ垂直）
+  ctx.strokeStyle=pal.legs; ctx.lineWidth=8; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(-20,-30); ctx.lineTo(-22,0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-8,-30);  ctx.lineTo(-9,0);  ctx.stroke();
+  // 頭（上がる・左向き）
+  ctx.fillStyle=pal.head; ctx.beginPath(); ctx.arc(-24,-58,30,0,7); ctx.fill();
+  // 耳
+  ctx.beginPath();ctx.moveTo(-44,-76);ctx.lineTo(-46,-98);ctx.lineTo(-29,-80);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(-29,-80);ctx.lineTo(-11,-96);ctx.lineTo(-7,-76);ctx.closePath();ctx.fill();
+  // 鼻（左）
+  ctx.fillStyle=pal.nose; ctx.beginPath(); ctx.ellipse(-52,-54,5,2.2,0,0,7); ctx.fill();
+  // 目（単眼・まばたき）
+  ctx.fillStyle=pal.eye;
+  if(bl){ ctx.save(); ctx.translate(-24,-58); ctx.scale(1,0.18); ctx.beginPath(); ctx.arc(0,0,3.1,0,7); ctx.fill(); ctx.restore(); }
+  else { ctx.beginPath(); ctx.arc(-24,-58,3.1,0,7); ctx.fill(); }
+  ctx.restore();
+}
 // 寝る：正面・目を閉じた丸まりロール（neko-3準拠／目は広め・胴は小さめ・鼻なし）
 function poseSleep(x,groundY,s,dir,now){ const w=now/2400; const breath=1+Math.sin(w)*0.02;
   ctx.save(); ctx.translate(x,groundY); ctx.scale(s, s); // 正面（左右反転しない）

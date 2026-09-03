@@ -109,12 +109,25 @@ function poseWalk(x,groundY,s,dir,now,fast){ const w=fast?now/230:now/470; const
     tailA:d2r(fast?-24:-12)+Math.sin(w*0.5)*d2r(5), dy:-Math.abs(Math.sin(w))*(fast?3:1.4)*s }); }
 function poseSit(x,groundY,s,dir,now){ const w=now/700; const bl=Math.sin(w*1.7)>0.93?1:0;
   drawNeko(x,groundY,s,dir,{ frontA:d2r(96), backA:d2r(84), tailA:d2r(-3)+Math.sin(w*0.6)*d2r(4), blink:bl }); }
-function poseRest(x,groundY,s,dir,now){ const w=now/1400; const bl=(Math.sin(w)>-0.2)?1:0; // うとうと
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(96), backA:d2r(84), tailA:d2r(8), blink:bl }); }
+// 寝る：むこうを向いて丸まった背中（顔・鼻・足なし）
+function poseSleep(x,groundY,s,dir,now){ const w=now/2200; const breath=1+Math.sin(w)*0.02;
+  ctx.save(); ctx.translate(x,groundY); ctx.scale(dir*s, s);
+  // 尻尾（まっすぐ・体に沿わせて下ろす）
+  ctx.strokeStyle=pal.tail; ctx.lineWidth=11; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(26,-8); ctx.lineTo(50,-3); ctx.stroke();
+  // 丸い背中（呼吸でほんの少し上下）
+  ctx.save(); ctx.translate(0,-14); ctx.scale(1,breath);
+  ctx.fillStyle=pal.body; ctx.beginPath(); ctx.ellipse(0,0,40,17,0,0,7); ctx.fill(); ctx.restore();
+  // 後頭部（顔なし）＋耳
+  ctx.fillStyle=pal.head; ctx.beginPath(); ctx.arc(-4,-30,20,0,7); ctx.fill();
+  ctx.beginPath();ctx.moveTo(-20,-38);ctx.lineTo(-18,-55);ctx.lineTo(-5,-42);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(-5,-42);ctx.lineTo(9,-57);ctx.lineTo(10,-40);ctx.closePath();ctx.fill();
+  ctx.restore();
+}
 function poseStretch(x,groundY,s,dir,p,now){ const a=Math.sin(p*Math.PI);
   drawNeko(x,groundY,s,dir,{ frontA:d2r(128+a*40), backA:d2r(60-a*26), tailA:d2r(-6-a*18), bodyRot:-0.10*a*dir, dy:a*4*s }); }
-function poseScratch(x,groundY,s,dir,now){ const w=now/300; // 後ろ足を地面につけたまま立ち上がる
-  drawNeko(x,groundY,s,dir,{ bodyRot:-0.75*dir, px:255, py:218, frontA:d2r(-104+Math.sin(w)*16), backA:d2r(90), tailA:d2r(-20) }); }
+function poseScratch(x,groundY,s,dir,now){ const w=now/300; // 後ろ足を地面につけたまま壁に立ち上がる
+  drawNeko(x,groundY,s,dir,{ bodyRot:-1.05*dir, px:255, py:218, frontA:d2r(-96+Math.sin(w)*15), backA:d2r(90), tailA:d2r(-16) }); }
 function poseJump(x,groundY,s,dir,p){ const up=Math.sin(p*Math.PI)*80;
   drawNeko(x,groundY,s,dir,{ frontA:d2r(150), backA:d2r(34), tailA:d2r(-28), bodyRot:-0.12*dir, dy:-up*s }); }
 function posePeek(edgeRight,groundY,s,now){ const w=now/500; const dir=edgeRight?-1:1;
@@ -131,13 +144,14 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function ease(t){t=clamp(t,0,1);return t*t*(3-2*t);}
 function pushWalk(tx){queue.push({type:'walk',toX:tx});}
 function cornerX(){ return Math.random()<0.5 ? W*0.12 : W*0.88; }
+function restAtCorner(){ if(Math.random()<0.4) queue.push({type:'sleep',dur:14+Math.random()*10}); else queue.push({type:'sit',dur:10+Math.random()*9}); }
 function plan(){
   const s=S(), pad=140*s;
   if(cat.x<-pad+5||cat.x>W+pad-5){ const cxr=cornerX();
-    queue.push({type:'enter',toX:cxr}); queue.push({type:'sit',dur:9+Math.random()*8}); return; }
+    queue.push({type:'enter',toX:cxr}); restAtCorner(); return; }
   const k=Math.random();
-  if(k<0.46){ // 基本：隅に座る
-    pushWalk(cornerX()); queue.push({type:'sit',dur:10+Math.random()*10});
+  if(k<0.46){ // 基本：隅に座る／ときどき寝る
+    pushWalk(cornerX()); restAtCorner();
   } else if(k<0.63){ // 顔だけのぞく
     const e=Math.random()<0.5; queue.push({type:'goEdge',right:e}); queue.push({type:'peek',dur:5,right:e});
     queue.push({type:'enter',toX:cornerX()}); queue.push({type:'sit',dur:7+Math.random()*7});
@@ -156,9 +170,9 @@ function start(){ cur=queue.shift(); t0=performance.now(); if(!cur)return; const
   else if(cur.type==='run'){ cur.fromX=cat.x; cur.toX=cur.right?W+150*s:-150*s; cur.faceRight=cur.right; cat.faceRight=cur.right; cur.dur=Math.max(0.8,Math.abs(cur.toX-cat.x)/(W*0.16)); }
   else if(cur.type==='goEdge'){ cur.fromX=cat.x; cur.toX=cur.right?W+150*s:-150*s; cur.faceRight=cur.right; cat.faceRight=cur.right; cur.dur=Math.max(1.0,Math.abs(cur.toX-cat.x)/(W*0.05)); }
   else if(cur.type==='scratch'){ cat.faceRight=cur.right; }
-  else if(cur.type==='sit'||cur.type==='rest'){ cat.faceRight = cat.x < W*0.5; }
+  else if(cur.type==='sit'||cur.type==='sleep'){ cat.faceRight = cat.x < W*0.5; }
 }
-const JP={walk:"あるく",run:"はしる",sit:"すわる",rest:"やすむ",stretch:"のび",scratch:"ツメ研ぎ",jump:"ジャンプ",peek:"のぞく"};
+const JP={walk:"あるく",run:"はしる",sit:"すわる",sleep:"ねる",scratch:"ツメ研ぎ",peek:"のぞく"};
 
 function frame(now){
   if(!cur){ if(queue.length===0) plan(); start(); }
@@ -171,7 +185,7 @@ function frame(now){
     else if(cur.type==='run'){ const q=clamp(p,0,1); cat.x=cur.fromX+(cur.toX-cur.fromX)*ease(q); poseWalk(cat.x,gy,s,dir,now,true); if(p>=1)cur=null; }
     else if(cur.type==='goEdge'){ const q=clamp(p,0,1); cat.x=cur.fromX+(cur.toX-cur.fromX)*ease(q); poseWalk(cat.x,gy,s,dir,now,false); if(p>=1)cur=null; }
     else if(cur.type==='sit'){ poseSit(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
-    else if(cur.type==='rest'){ poseRest(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
+    else if(cur.type==='sleep'){ poseSleep(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
     else if(cur.type==='stretch'){ poseStretch(cat.x,gy,s,dir,clamp(p,0,1),now); if(p>=1)cur=null; }
     else if(cur.type==='scratch'){ poseScratch(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
     else if(cur.type==='jump'){ const q=clamp(p,0,1); cat.x=cur.fromX+(cur.toX-cur.fromX)*q; poseJump(cat.x,gy,s,dir,q); if(p>=1)cur=null; }

@@ -29,8 +29,8 @@
   <div class="bar" id="bar"></div>
   <div class="stage"><canvas id="cv"></canvas><span class="now" id="now"></span></div>
   <div class="hint">
-    手足は2本・関節で回るだけ（長さ固定）／尻尾はまっすぐ／胴と比率はそのまま。<br>
-    歩く・座る・伸び・ツメ研ぎ・ジャンプ・のぞく・休む をランダムに。上のボタンで背景色を切替。
+    固定寸法の1体を、角度と位置だけ変えて動かします。ポーズ切替は自動で補間（急に飛びません）。<br>
+    歩く・走る・座る・寝る・ツメ研ぎ・のぞく をランダムに。上のボタンで背景色を切替。
   </div>
 
 <script>
@@ -56,172 +56,143 @@ function drawBG(){ ctx.fillStyle=pal.bg; ctx.fillRect(0,0,W,H);
   if(pal.dots){ ctx.fillStyle=pal.dot; const st=Math.max(W,H)/18,r=st*0.05;
     for(let y=st/2;y<H;y+=st)for(let x=st/2;x<W;x+=st){ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();} } }
 
-// ===== neko-1 の猫（比率そのまま／単眼／まっすぐ尻尾／2本の剛体脚） =====
-// local: head(199.3,160.9,r32.7), body capsule(210.7..263.5,177..204.6), tail(258.6..287.1,181.8..188.1)
-// nose(164.7,168.8), eye(198.9,162.1), 前股(221,198) 後股(253,196), 脚長21（固定）
-const Hf=[221,197], Hb=[253,197], LEGLEN=21;
-function tri(a,b,c){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.lineTo(c[0],c[1]);ctx.closePath();ctx.fill();}
+// ================== 固定寸法の部品 ==================
+const R = { headR:24, legLen:22, legW:8, bw:31, bh:15, brad:15, tailLen:30, tailW:10, eyeR:3.2 };
+const d2r = d=>d*Math.PI/180;
+
 function rr(l,t,r,b,rad){ctx.beginPath();ctx.moveTo(l+rad,t);ctx.arcTo(r,t,r,b,rad);ctx.arcTo(r,b,l,b,rad);ctx.arcTo(l,b,l,t,rad);ctx.arcTo(l,t,r,t,rad);ctx.closePath();ctx.fill();}
-function legRod(hip,ang,color,w){ const px=hip[0]+LEGLEN*Math.cos(ang), py=hip[1]+LEGLEN*Math.sin(ang);
-  ctx.strokeStyle=color;ctx.lineWidth=w;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(hip[0],hip[1]);ctx.lineTo(px,py);ctx.stroke(); }
+function hipWorld(P,lx,ly){ const c=Math.cos(P.bodyRot), s=Math.sin(P.bodyRot);
+  return {x:P.bodyX + lx*c - ly*s, y:P.bodyY + lx*s + ly*c}; }
+function legRod(hip,angDeg,color){ const a=d2r(angDeg);
+  const px=hip.x+R.legLen*Math.cos(a), py=hip.y+R.legLen*Math.sin(a);
+  ctx.strokeStyle=color; ctx.lineWidth=R.legW; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(hip.x,hip.y); ctx.lineTo(px,py); ctx.stroke(); }
+function drawBody(bx,by,rot){ ctx.save(); ctx.translate(bx,by); ctx.rotate(rot);
+  ctx.fillStyle=pal.body; rr(-R.bw,-R.bh,R.bw,R.bh,R.brad); ctx.restore(); }
+function drawHead(hx,hy){
+  ctx.fillStyle=pal.head; ctx.beginPath(); ctx.arc(hx,hy,R.headR,0,7); ctx.fill();
+  // 耳（固定形）
+  ctx.beginPath();ctx.moveTo(hx-16,hy-20);ctx.lineTo(hx-14,hy-38);ctx.lineTo(hx-2,hy-24);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(hx+2,hy-24);ctx.lineTo(hx+14,hy-38);ctx.lineTo(hx+16,hy-20);ctx.closePath();ctx.fill();
+}
+function drawTail(base,angDeg){ ctx.save(); ctx.translate(base.x,base.y); ctx.rotate(d2r(angDeg));
+  ctx.strokeStyle=pal.tail; ctx.lineWidth=R.tailW; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(R.tailLen,0); ctx.stroke(); ctx.restore(); }
 
-function drawNeko(catX, groundY, s, dir, o){
-  o=o||{};
-  const frontA=o.frontA!=null?o.frontA:d2r(128);
-  const backA =o.backA !=null?o.backA :d2r(60);
-  const bodyRot=o.bodyRot||0, blink=o.blink||0, headExtra=o.headExtra||0, tailA=o.tailA||0;
-  const sx=catX - dir*s*222.9;
-  const sy=groundY - s*210 + (o.dy||0);
-  ctx.save();
-  ctx.translate(sx,sy); ctx.scale(dir*s, s);
-  // 剛体の全身回転（爪とぎ/伸び用・比率は保つ）
-  const px=o.px!=null?o.px:235, py=o.py!=null?o.py:208;
-  ctx.translate(px,py); ctx.rotate(bodyRot); ctx.translate(-px,-py);
-
-  // 尻尾（まっすぐ・剛体・根元で上下に回るだけ／曲げない）
-  ctx.save(); ctx.translate(258.6,185); ctx.rotate(tailA); ctx.translate(-258.6,-185);
-  ctx.fillStyle=pal.tail; rr(258.6,181.77,287.12,188.07,3.15); ctx.restore();
-  // 胴（歪めない）
-  ctx.fillStyle=pal.body; rr(210.74,177.04,263.5,204.6,13.78);
-  // 手足（2本とも胴の前面に）
-  legRod(Hb, backA, pal.legs, 7);
-  legRod(Hf, frontA, pal.legs, 7);
-  // 頭
-  ctx.save(); ctx.translate(0,headExtra);
-  ctx.fillStyle=pal.head; ctx.beginPath();ctx.arc(199.321,160.902,32.677,0,7);ctx.fill();
-  tri([172.69,141.24],[171.76,126.45],[184.80,133.19]);
-  tri([211.59,132.00],[196.77,131.65],[204.62,119.25]);
+// リグ（横向き基準：鼻＝左、尻＝右）。P は「位置と角度」だけ。寸法は固定。
+function drawRig(P){
+  const fh=hipWorld(P,-16,14), bh=hipWorld(P,18,14), tb=hipWorld(P,29,-4);
+  drawTail(tb,P.tailA);
+  legRod(bh,P.backA, shade(pal.legs,0.82));   // 後ろ足（胴の後ろ）
+  drawBody(P.bodyX,P.bodyY,P.bodyRot);
+  legRod(fh,P.frontA, pal.legs);              // 前足（胴の前）
+  drawHead(P.headX,P.headY);
   // 鼻
-  ctx.fillStyle=pal.nose; ctx.beginPath();ctx.ellipse(164.676,168.775,5.906,2.461,0,0,7);ctx.fill();
-  // 目（単眼・白点／まばたき）
-  ctx.fillStyle=pal.eye;
-  if(blink>0.5){ ctx.save();ctx.translate(198.929,162.083);ctx.scale(1,0.18);ctx.beginPath();ctx.arc(0,0,3.149,0,7);ctx.fill();ctx.restore(); }
-  else { ctx.beginPath();ctx.arc(198.929,162.083,3.149,0,7);ctx.fill(); }
-  ctx.restore();
-
+  ctx.fillStyle=pal.nose; ctx.beginPath(); ctx.ellipse(P.headX-22,P.headY+3,5,2.2,0,0,7); ctx.fill();
+  // 目（単眼／開閉）
+  ctx.save(); ctx.translate(P.headX+2,P.headY-4);
+  if(P.eyeOpen>0.5){ ctx.fillStyle=pal.eye; ctx.beginPath(); ctx.arc(0,0,R.eyeR,0,7); ctx.fill(); }
+  else { ctx.strokeStyle=pal.eye; ctx.lineWidth=2.6; ctx.lineCap="round"; ctx.beginPath(); ctx.moveTo(-4,0); ctx.lineTo(4,0); ctx.stroke(); }
   ctx.restore();
 }
-function d2r(d){return d*Math.PI/180;}
+function shade(hex,f){ const n=parseInt(hex.slice(1),16); const r=Math.round(((n>>16)&255)*f),g=Math.round(((n>>8)&255)*f),b=Math.round((n&255)*f); return `rgb(${r},${g},${b})`; }
 
-// ===== poses set options; cat roams as before =====
-function poseWalk(x,groundY,s,dir,now,fast){ const w=fast?now/230:now/470; const sw=fast?22:12; // トコトコ / 走り
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(96+Math.sin(w)*sw), backA:d2r(84-Math.sin(w)*sw),
-    tailA:d2r(fast?-24:-12)+Math.sin(w*0.5)*d2r(5), dy:-Math.abs(Math.sin(w))*(fast?3:1.4)*s }); }
-// 座る：neko-3 の座り姿そのもの（あなたの原案パスを使用）。頭上げ・お尻接地・前足踏ん張り。
-const SIT_CX=320, SIT_CY=256, SIT_FEET=309;
-function poseSit(x,groundY,s0,dir,now){
-  const s = s0*(22/32.677); // 頭を歩きと同じ大きさに揃える（歩きの頭r22 / neko-3の頭r32.677）
-  ctx.save();
-  ctx.translate(x, groundY - (SIT_FEET-SIT_CY)*s);
-  ctx.scale(dir*s, s);
-  ctx.translate(-SIT_CX,-SIT_CY);
-  const P=(d,c)=>{ ctx.fillStyle=c; ctx.fill(new Path2D(d)); };
-  // 尻尾
-  P("M367.273,267.946c1.195,1.265,1.139,3.258-0.126,4.452l-16.597,15.684c-1.265,1.194-3.258,1.138-4.452-0.126l0,0c-1.195-1.265-1.139-3.258,0.126-4.452l16.597-15.684C364.085,266.625,366.079,266.682,367.273,267.946z", pal.tail);
-  // お尻〜胴（後ろ足はこの中）
-  P("M349.348,300.288c-4.287,6.288-12.858,7.911-19.147,3.625l-20.82-14.191c-6.289-4.286-7.912-12.858-3.625-19.146l0,0c4.286-6.288,12.857-7.911,19.146-3.625l20.82,14.191C352.011,285.427,353.634,294,349.348,300.288z", pal.body);
-  // 前足（2本）
-  P("M313.798,285.638c2.076,0.645,3.238,2.849,2.595,4.926l-5.595,18.051c-0.645,2.076-2.85,3.238-4.926,2.595l0,0c-2.077-0.644-3.239-2.849-2.596-4.926l5.595-18.051C309.515,286.157,311.721,284.995,313.798,285.638z", pal.legs);
-  P("M336.533,290.656c1.85-1.143,4.177-0.729,5.199,0.925l8.881,14.373c1.021,1.652,0.35,3.919-1.499,5.063l0,0c-1.85,1.143-4.178,0.729-5.2-0.924l-8.881-14.373C334.011,294.066,334.682,291.798,336.533,290.656z", pal.legs);
+// 寝る：正面・固定寸法・目を閉じ・鼻/足なし・尻尾は胴の後ろ（フェードで繋ぐ例外）
+function drawSleep(now){ const w=now/2400, breath=1+Math.sin(w)*0.02;
+  // 尻尾（胴の後ろ）
+  ctx.strokeStyle=pal.tail; ctx.lineWidth=R.tailW-1; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(14,-8); ctx.lineTo(40,-12); ctx.stroke();
+  // 体（固定寸法のロール・呼吸）
+  ctx.save(); ctx.translate(0,-15); ctx.scale(1,breath);
+  ctx.fillStyle=pal.body; rr(-R.bw,-R.bh,R.bw,R.bh,R.brad); ctx.restore();
   // 頭
-  ctx.fillStyle=pal.head; ctx.beginPath(); ctx.arc(308.84,242.573,32.677,0,7); ctx.fill();
-  // 耳
-  P("M284.816,219.795c-0.141,0.068-0.246-0.005-0.233-0.159l1.122-14.638c0.012-0.155,0.127-0.211,0.256-0.123l12.116,8.291c0.129,0.089,0.119,0.216-0.021,0.283L284.816,219.795z", pal.head);
-  P("M324.557,215.396c0.055,0.146-0.026,0.245-0.18,0.22l-14.486-2.385c-0.153-0.025-0.198-0.146-0.101-0.265l9.309-11.354c0.099-0.121,0.225-0.1,0.279,0.046L324.557,215.396z", pal.head);
-  // 鼻
-  ctx.save(); ctx.translate(273.491,246.141); ctx.rotate(0.1226); ctx.fillStyle=pal.nose; ctx.beginPath(); ctx.ellipse(0,0,5.906,2.461,0,0,7); ctx.fill(); ctx.restore();
-  // 目（単眼）
-  ctx.fillStyle=pal.eye; ctx.beginPath(); ctx.arc(308.305,243.696,3.15,0,7); ctx.fill();
-  ctx.restore();
-}
-// 寝る：正面・目を閉じた丸まりロール（目は広め・胴は小さめ・鼻/足なし・尻尾は胴の後ろ）
-function poseSleep(x,groundY,s,dir,now){ const w=now/2400; const breath=1+Math.sin(w)*0.02;
-  ctx.save(); ctx.translate(x,groundY); ctx.scale(s, s); // 正面（左右反転しない）
-  // 尻尾（胴体の後ろ・後ろから少しだけのぞく）
-  ctx.strokeStyle=pal.tail; ctx.lineWidth=9; ctx.lineCap="round";
-  ctx.beginPath(); ctx.moveTo(8,-9); ctx.lineTo(34,-13); ctx.stroke();
-  // 体（小さめのロール・呼吸でわずかに上下／尻尾を隠す）
-  ctx.save(); ctx.translate(0,-9); ctx.scale(1,breath);
-  ctx.fillStyle=pal.body; rr(-24,-10,24,10,10); ctx.restore();
-  // 頭
-  ctx.fillStyle=pal.head; ctx.beginPath(); ctx.arc(0,-38,24,0,7); ctx.fill();
-  // 耳
-  ctx.beginPath();ctx.moveTo(-18,-52);ctx.lineTo(-16,-70);ctx.lineTo(-2,-56);ctx.closePath();ctx.fill();
-  ctx.beginPath();ctx.moveTo(2,-56);ctx.lineTo(16,-70);ctx.lineTo(18,-52);ctx.closePath();ctx.fill();
-  // 閉じた目（間隔を広く）
+  ctx.fillStyle=pal.head; ctx.beginPath(); ctx.arc(0,-40,R.headR,0,7); ctx.fill();
+  ctx.beginPath();ctx.moveTo(-18,-54);ctx.lineTo(-16,-72);ctx.lineTo(-2,-58);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(2,-58);ctx.lineTo(16,-72);ctx.lineTo(18,-54);ctx.closePath();ctx.fill();
+  // 閉じ目（間隔広め）
   ctx.strokeStyle=pal.eye; ctx.lineWidth=2.8; ctx.lineCap="round";
-  ctx.beginPath(); ctx.moveTo(-17,-40); ctx.lineTo(-9,-40); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(9,-40); ctx.lineTo(17,-40); ctx.stroke();
-  ctx.restore();
+  ctx.beginPath(); ctx.moveTo(-17,-42); ctx.lineTo(-9,-42); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(9,-42); ctx.lineTo(17,-42); ctx.stroke();
 }
-function poseStretch(x,groundY,s,dir,p,now){ const a=Math.sin(p*Math.PI);
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(128+a*40), backA:d2r(60-a*26), tailA:d2r(-6-a*18), bodyRot:-0.10*a*dir, dy:a*4*s }); }
-function poseScratch(x,groundY,s,dir,now){ const w=now/300; // 後ろ足を地面につけたまま壁に立ち上がる
-  drawNeko(x,groundY,s,dir,{ bodyRot:-1.05*dir, px:255, py:218, frontA:d2r(-96+Math.sin(w)*15), backA:d2r(90), tailA:d2r(-16) }); }
-function poseJump(x,groundY,s,dir,p){ const up=Math.sin(p*Math.PI)*80;
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(150), backA:d2r(34), tailA:d2r(-28), bodyRot:-0.12*dir, dy:-up*s }); }
-function posePeek(edgeRight,groundY,s,now){ const w=now/500; const dir=edgeRight?-1:1;
-  const x = edgeRight? W - s*60 : s*60; // 頭だけ画面内、体は端の外へ
-  drawNeko(x, H*0.66, s, dir, { frontA:d2r(150), backA:d2r(70), tailA:d2r(-10), dy:Math.sin(w)*3*s }); }
 
-function hexA(hex,a){const n=parseInt(hex.slice(1),16);return`rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;}
+// ================== ポーズ（目標パラメータ＝キーフレーム） ==================
+const STAND={bodyX:0,bodyY:-36,bodyRot:0,headX:-36,headY:-48,frontA:90,backA:90,tailA:-18,eyeOpen:1};
+function tgtWalk(now,fast){ const w=fast?now/230:now/470, sw=fast?22:14;
+  return {bodyX:0,bodyY:-36-Math.abs(Math.sin(w))*2,bodyRot:0,headX:-36,headY:-48,
+    frontA:90+Math.sin(w)*sw, backA:90-Math.sin(w)*sw, tailA:-18+Math.sin(w*0.5)*5, eyeOpen:1}; }
+const SIT={bodyX:2,bodyY:-27,bodyRot:0.5,headX:-24,headY:-56,frontA:90,backA:205,tailA:-28,eyeOpen:1};
+function tgtScratch(now){ const w=now/300;
+  return {bodyX:0,bodyY:-20,bodyRot:-1.0,headX:-28,headY:-58,frontA:-70+Math.sin(w)*16,backA:92,tailA:-18,eyeOpen:1}; }
+function tgtPeek(now){ const w=now/500;
+  return {bodyX:0,bodyY:-36+Math.sin(w)*2,bodyRot:0,headX:-36,headY:-48,frontA:90,backA:90,tailA:-18,eyeOpen:1}; }
 
-// ===== director（前と同様に画面を行きかう） =====
-let cat={x:-200, faceRight:false};
-let queue=[], cur=null, t0=0;
-function S(){ return Math.min(W,H)*0.0022; }
+function targetFor(name,now){
+  if(name==='run') return tgtWalk(now,true);
+  if(name==='walk'||name==='goEdge') return tgtWalk(now,false);
+  if(name==='sit'||name==='sleep') return SIT;
+  if(name==='scratch') return tgtScratch(now);
+  if(name==='peek') return tgtPeek(now);
+  return STAND;
+}
+
+// ================== 補間（インビトウィーニング） ==================
+const KEYS=['bodyX','bodyY','bodyRot','headX','headY','frontA','backA','tailA','eyeOpen'];
+let cur=Object.assign({},STAND); let sleepAmt=0;
+function approach(T,dt,tau){ const k=1-Math.exp(-dt/tau); for(const key of KEYS) cur[key]+=(T[key]-cur[key])*k; }
+
+// ================== ディレクター ==================
+let cat={x:-200}; let curAct=null, t0=0, poseName='walk', dir=1;
+function S(){ return Math.min(W,H)*0.0026; }
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function ease(t){t=clamp(t,0,1);return t*t*(3-2*t);}
+function cornerX(){ return Math.random()<0.5 ? W*0.14 : W*0.86; }
 function pushWalk(tx){queue.push({type:'walk',toX:tx});}
-function cornerX(){ return Math.random()<0.5 ? W*0.12 : W*0.88; }
-function restAtCorner(){ if(Math.random()<0.28) queue.push({type:'sleep',dur:14+Math.random()*10}); else queue.push({type:'sit',dur:10+Math.random()*9}); }
+function restAtCorner(){ if(Math.random()<0.3) queue.push({type:'sleep',dur:14+Math.random()*10}); else queue.push({type:'sit',dur:10+Math.random()*9}); }
+let queue=[];
 function plan(){
-  const s=S(), pad=140*s;
-  if(cat.x<-pad+5||cat.x>W+pad-5){ const cxr=cornerX();
-    queue.push({type:'enter',toX:cxr}); restAtCorner(); return; }
+  const s=S(), pad=150*s;
+  if(cat.x<-pad+5||cat.x>W+pad-5){ queue.push({type:'enter',toX:cornerX()}); restAtCorner(); return; }
   const k=Math.random();
-  if(k<0.56){ // 基本：隅に座る／ときどき寝る
-    pushWalk(cornerX()); restAtCorner();
-  } else if(k<0.70){ // 顔だけのぞく→隅で座る
-    const e=Math.random()<0.5; queue.push({type:'goEdge',right:e}); queue.push({type:'peek',dur:5,right:e});
-    queue.push({type:'enter',toX:cornerX()}); queue.push({type:'sit',dur:9+Math.random()*7});
-  } else if(k<0.84){ // 端で爪とぎ→その場で座る
-    const e=Math.random()<0.5; pushWalk(e?W*0.90:W*0.10); queue.push({type:'scratch',dur:5.5,right:e});
-    queue.push({type:'sit',dur:8+Math.random()*6});
-  } else if(k<0.91){ // トコトコ散歩→座る
-    pushWalk(W*(0.2+Math.random()*0.6)); queue.push({type:'sit',dur:5+Math.random()*5});
-  } else { // 走って横切る→隅で座る
-    queue.push({type:'run', right: cat.x < W/2}); queue.push({type:'enter',toX:cornerX()}); queue.push({type:'sit',dur:6+Math.random()*6});
-  }
+  if(k<0.56){ pushWalk(cornerX()); restAtCorner(); }
+  else if(k<0.70){ const e=Math.random()<0.5; queue.push({type:'goEdge',right:e}); queue.push({type:'peek',dur:5,right:e}); queue.push({type:'enter',toX:cornerX()}); queue.push({type:'sit',dur:9+Math.random()*7}); }
+  else if(k<0.84){ const e=Math.random()<0.5; pushWalk(e?W*0.9:W*0.1); queue.push({type:'scratch',dur:5.5,right:e}); queue.push({type:'sit',dur:8+Math.random()*6}); }
+  else if(k<0.92){ pushWalk(W*(0.2+Math.random()*0.6)); queue.push({type:'sit',dur:5+Math.random()*5}); }
+  else { queue.push({type:'run', right: cat.x<W/2}); queue.push({type:'enter',toX:cornerX()}); queue.push({type:'sit',dur:6+Math.random()*6}); }
 }
-function start(){ cur=queue.shift(); t0=performance.now(); if(!cur)return; const s=S();
-  if(cur.type==='enter'){ cat.x=(cur.toX<W/2)?-140*s:W+140*s; cur.fromX=cat.x; cur.faceRight=cur.toX>cat.x; cat.faceRight=cur.faceRight; cur.dur=Math.max(1.2,Math.abs(cur.toX-cat.x)/(W*0.045)); cur.type='walk'; }
-  else if(cur.type==='walk'){ cur.fromX=cat.x; cur.faceRight=cur.toX>cat.x; cat.faceRight=cur.faceRight; cur.dur=Math.max(1.0,Math.abs(cur.toX-cat.x)/(W*0.045)); }
-  else if(cur.type==='run'){ cur.fromX=cat.x; cur.toX=cur.right?W+150*s:-150*s; cur.faceRight=cur.right; cat.faceRight=cur.right; cur.dur=Math.max(0.8,Math.abs(cur.toX-cat.x)/(W*0.16)); }
-  else if(cur.type==='goEdge'){ cur.fromX=cat.x; cur.toX=cur.right?W+150*s:-150*s; cur.faceRight=cur.right; cat.faceRight=cur.right; cur.dur=Math.max(1.0,Math.abs(cur.toX-cat.x)/(W*0.05)); }
-  else if(cur.type==='scratch'){ cat.faceRight=cur.right; }
-  else if(cur.type==='sit'||cur.type==='sleep'){ cat.faceRight = cat.x < W*0.5; }
+function startAct(){ curAct=queue.shift(); t0=performance.now(); if(!curAct)return; const s=S();
+  if(curAct.type==='enter'){ cat.x=(curAct.toX<W/2)?-150*s:W+150*s; curAct.fromX=cat.x; dir=(curAct.toX>cat.x)?-1:1; curAct.dur=Math.max(1.2,Math.abs(curAct.toX-cat.x)/(W*0.05)); poseName='walk'; }
+  else if(curAct.type==='walk'){ curAct.fromX=cat.x; dir=(curAct.toX>cat.x)?-1:1; curAct.dur=Math.max(1.0,Math.abs(curAct.toX-cat.x)/(W*0.05)); poseName='walk'; }
+  else if(curAct.type==='run'){ curAct.fromX=cat.x; curAct.toX=curAct.right?W+160*s:-160*s; dir=curAct.right?-1:1; curAct.dur=Math.max(0.8,Math.abs(curAct.toX-cat.x)/(W*0.16)); poseName='run'; }
+  else if(curAct.type==='goEdge'){ curAct.fromX=cat.x; curAct.toX=curAct.right?W+160*s:-160*s; dir=curAct.right?-1:1; curAct.dur=Math.max(1.0,Math.abs(curAct.toX-cat.x)/(W*0.06)); poseName='goEdge'; }
+  else if(curAct.type==='peek'){ dir=curAct.right?1:-1; cat.x=curAct.right? W-8 : 8; poseName='peek'; }
+  else if(curAct.type==='scratch'){ dir=curAct.right?-1:1; poseName='scratch'; }
+  else if(curAct.type==='sit'){ dir=cat.x<W/2?-1:1; poseName='sit'; }
+  else if(curAct.type==='sleep'){ dir=cat.x<W/2?-1:1; poseName='sleep'; }
 }
-const JP={walk:"あるく",run:"はしる",sit:"すわる",sleep:"ねる",scratch:"ツメ研ぎ",peek:"のぞく"};
+const JP={walk:"あるく",run:"はしる",goEdge:"あるく",sit:"すわる",sleep:"ねる",scratch:"ツメ研ぎ",peek:"のぞく",enter:"あるく"};
 
+let lastNow=performance.now();
 function frame(now){
-  if(!cur){ if(queue.length===0) plan(); start(); }
-  const s=S(), gy=H*0.86, dir=cat.faceRight?-1:1;
-  const p = cur? (now-t0)/1000/(cur.dur||1) : 0;
-  drawBG();
-  nowLbl.textContent = NAMES[palKey]+" ・ "+(JP[cur?cur.type:'walk']||"");
-  if(cur){
-    if(cur.type==='walk'){ const q=clamp(p,0,1); cat.x=cur.fromX+(cur.toX-cur.fromX)*ease(q); poseWalk(cat.x,gy,s,dir,now,false); if(p>=1)cur=null; }
-    else if(cur.type==='run'){ const q=clamp(p,0,1); cat.x=cur.fromX+(cur.toX-cur.fromX)*ease(q); poseWalk(cat.x,gy,s,dir,now,true); if(p>=1)cur=null; }
-    else if(cur.type==='goEdge'){ const q=clamp(p,0,1); cat.x=cur.fromX+(cur.toX-cur.fromX)*ease(q); poseWalk(cat.x,gy,s,dir,now,false); if(p>=1)cur=null; }
-    else if(cur.type==='sit'){ poseSit(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
-    else if(cur.type==='sleep'){ poseSleep(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
-    else if(cur.type==='stretch'){ poseStretch(cat.x,gy,s,dir,clamp(p,0,1),now); if(p>=1)cur=null; }
-    else if(cur.type==='scratch'){ poseScratch(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
-    else if(cur.type==='jump'){ const q=clamp(p,0,1); cat.x=cur.fromX+(cur.toX-cur.fromX)*q; poseJump(cat.x,gy,s,dir,q); if(p>=1)cur=null; }
-    else if(cur.type==='peek'){ posePeek(cur.right,gy,s,now); if(p>=1)cur=null; }
-    else cur=null;
+  if(!curAct){ if(queue.length===0) plan(); startAct(); }
+  const dt=Math.min(0.05,Math.max(0.001,(now-lastNow)/1000)); lastNow=now;
+  const s=S(), gy=H*0.86;
+  // 位置
+  if(curAct){
+    const p=(now-t0)/1000/(curAct.dur||1);
+    if(poseName==='walk'||poseName==='run'||poseName==='goEdge'){ const q=clamp(p,0,1); cat.x=curAct.fromX+(curAct.toX-curAct.fromX)*ease(q); }
+    if(p>=1) curAct=null;
   }
+  // 目標へ補間
+  const T=targetFor(poseName,now);
+  approach(T,dt,0.16);
+  sleepAmt += ((poseName==='sleep'?1:0)-sleepAmt)*(1-Math.exp(-dt/0.4));
+  // 描画
+  drawBG();
+  nowLbl.textContent=NAMES[palKey]+" ・ "+(JP[poseName]||"");
+  // リグ（寝るときは薄く）
+  ctx.save(); ctx.translate(cat.x,gy); ctx.scale(dir*s,s);
+  ctx.globalAlpha=1-sleepAmt; drawRig(cur); ctx.globalAlpha=1; ctx.restore();
+  if(sleepAmt>0.02){ ctx.save(); ctx.translate(cat.x,gy); ctx.scale(s,s); ctx.globalAlpha=sleepAmt; drawSleep(now); ctx.globalAlpha=1; ctx.restore(); }
   requestAnimationFrame(frame);
 }
 

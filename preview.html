@@ -11,7 +11,7 @@
   body{background:#0a0b0e;color:var(--ink);
     font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
     display:flex;flex-direction:column;align-items:center;gap:10px;padding:10px}
-  h1{font-size:15px;font-weight:600;margin:6px 0 0;letter-spacing:.03em}
+  h1{font-size:15px;font-weight:600;margin:6px 0 0}
   .bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
   .bar button{border:1px solid #2a2f38;background:#14171d;color:#e8e6e0;
     border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer}
@@ -29,318 +29,155 @@
   <div class="bar" id="bar"></div>
   <div class="stage"><canvas id="cv"></canvas><span class="now" id="now"></span></div>
   <div class="hint">
-    伸び・ツメ研ぎ・ジャンプ・顔だけのぞく・伏せて休む…をランダムに。上のボタンで背景色を切替。<br>
-    ※ これは動き確認用。速度や挙動の割合はアプリで調整できます。
+    手足は2本・関節で回るだけ（長さ固定）／尻尾はまっすぐ／胴と比率はそのまま。<br>
+    歩く・座る・伸び・ツメ研ぎ・ジャンプ・のぞく・休む をランダムに。上のボタンで背景色を切替。
   </div>
 
 <script>
-const PALETTES = {
-  clay:   {bg:"#d69f77", dots:false, head:"#3f4653", body:"#7f93b3", legs:"#465269", tail:"#ede7d6", nose:"#ede7d6", eye:"#ffffff"},
-  dots:   {bg:"#e7e0cd", dots:true,  dot:"#cdbfa0", head:"#f39700", body:"#a9713c", legs:"#465269", tail:"#8f9399", nose:"#3a2a18", eye:"#ffffff"},
-  oatmeal:{bg:"#e7e0cd", dots:false, head:"#f39700", body:"#a9713c", legs:"#465269", tail:"#8f9399", nose:"#3a2a18", eye:"#ffffff"},
-  blue:   {bg:"#9fb0c3", dots:false, head:"#f39700", body:"#a9713c", legs:"#2f3a4d", tail:"#ede7d6", nose:"#20242c", eye:"#ffffff"},
-  sage:   {bg:"#a7b6a0", dots:false, head:"#f39700", body:"#a9713c", legs:"#465269", tail:"#8f9399", nose:"#20242c", eye:"#ffffff"},
-  sumi:   {bg:"#3f4653", dots:false, head:"#f39700", body:"#a9713c", legs:"#7f93b3", tail:"#8f9399", nose:"#ede7d6", eye:"#ffffff"}
+const PAL = {
+  clay:   {bg:"#d69f77", dots:false, head:"#3f4653", body:"#7f93b3", legs:"#465269", tail:"#465269", nose:"#ede7d6", eye:"#ffffff"},
+  dots:   {bg:"#e7e0cd", dots:true,  dot:"#cdbfa0", head:"#f39700", body:"#a9713c", legs:"#3a2a18", tail:"#3a2a18", nose:"#3a2a18", eye:"#ffffff"},
+  oatmeal:{bg:"#e7e0cd", dots:false, head:"#f39700", body:"#a9713c", legs:"#3a2a18", tail:"#3a2a18", nose:"#3a2a18", eye:"#ffffff"},
+  blue:   {bg:"#9fb0c3", dots:false, head:"#1f3f8f", body:"#9aa0a8", legs:"#20242c", tail:"#20242c", nose:"#20242c", eye:"#ffffff"},
+  sage:   {bg:"#a7b6a0", dots:false, head:"#f39700", body:"#a9713c", legs:"#20242c", tail:"#20242c", nose:"#20242c", eye:"#ffffff"},
+  sumi:   {bg:"#3f4653", dots:false, head:"#f39700", body:"#a9713c", legs:"#e8c73e", tail:"#e8c73e", nose:"#ede7d6", eye:"#ffffff"}
 };
-const NAMES = {clay:"クレイ",dots:"点柄",oatmeal:"オートミール",blue:"ダスティブルー",sage:"セージ",sumi:"すみ"};
-let pal = PALETTES.clay, palKey="clay";
+const NAMES={clay:"クレイ",dots:"点柄",oatmeal:"オートミール",blue:"ダスティブルー",sage:"セージ",sumi:"すみ"};
+let pal=PAL.clay, palKey="clay";
 
-const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
-const nowLbl = document.getElementById('now');
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d'), nowLbl=document.getElementById('now');
 let W=0,H=0,DPR=1;
-function resize(){
-  DPR = Math.min(2, window.devicePixelRatio||1);
-  const r = cv.parentElement.getBoundingClientRect();
-  W=r.width; H=r.height;
-  cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
-  ctx.setTransform(DPR,0,0,DPR,0,0);
-}
-window.addEventListener('resize', resize);
+function resize(){ DPR=Math.min(2,window.devicePixelRatio||1);
+  const r=cv.parentElement.getBoundingClientRect(); W=r.width; H=r.height;
+  cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR); ctx.setTransform(DPR,0,0,DPR,0,0); }
+window.addEventListener('resize',resize);
 
-// ---- background ----
-function drawBG(){
-  ctx.fillStyle = pal.bg; ctx.fillRect(0,0,W,H);
-  if(pal.dots){
-    ctx.fillStyle = pal.dot;
-    const step = Math.max(W,H)/18, r=step*0.05;
-    for(let y=step/2;y<H;y+=step) for(let x=step/2;x<W;x+=step){ ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill(); }
-  }
-}
+function drawBG(){ ctx.fillStyle=pal.bg; ctx.fillRect(0,0,W,H);
+  if(pal.dots){ ctx.fillStyle=pal.dot; const st=Math.max(W,H)/18,r=st*0.05;
+    for(let y=st/2;y<H;y+=st)for(let x=st/2;x<W;x+=st){ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();} } }
 
-// ---- cat parts (local frame: paws at y=0, up is negative, faces LEFT) ----
-function tri(a,b,c){ ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.lineTo(c[0],c[1]);ctx.closePath();ctx.fill(); }
-function roundRect(l,t,r,b,rad){ ctx.beginPath();ctx.moveTo(l+rad,t);ctx.arcTo(r,t,r,b,rad);ctx.arcTo(r,b,l,b,rad);ctx.arcTo(l,b,l,t,rad);ctx.arcTo(l,t,r,t,rad);ctx.closePath();ctx.fill(); }
-function leg(x1,y1,x2,y2,color,w){ ctx.strokeStyle=color;ctx.lineWidth=w;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke(); }
-function headEars(cx,cy,r,perk){
-  ctx.fillStyle=pal.head;
-  ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.fill();
-  tri([cx-14,cy-r+4],[cx-12,cy-r-16-perk],[cx-2,cy-r+2]);
-  tri([cx+2,cy-r+2],[cx+12,cy-r-16-perk],[cx+14,cy-r+4]);
-}
-function face(cx,cy, noseDx, eyes){
-  ctx.fillStyle=pal.nose;
-  ctx.beginPath();ctx.ellipse(cx-18+noseDx, cy+2, 4.5,2.2,0,0,7);ctx.fill();
+// ===== neko-1 の猫（比率そのまま／単眼／まっすぐ尻尾／2本の剛体脚） =====
+// local: head(199.3,160.9,r32.7), body capsule(210.7..263.5,177..204.6), tail(258.6..287.1,181.8..188.1)
+// nose(164.7,168.8), eye(198.9,162.1), 前股(221,198) 後股(253,196), 脚長21（固定）
+const Hf=[221,198], Hb=[253,196], LEGLEN=21;
+function tri(a,b,c){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.lineTo(c[0],c[1]);ctx.closePath();ctx.fill();}
+function rr(l,t,r,b,rad){ctx.beginPath();ctx.moveTo(l+rad,t);ctx.arcTo(r,t,r,b,rad);ctx.arcTo(r,b,l,b,rad);ctx.arcTo(l,b,l,t,rad);ctx.arcTo(l,t,r,t,rad);ctx.closePath();ctx.fill();}
+function legRod(hip,ang,color,w){ const px=hip[0]+LEGLEN*Math.cos(ang), py=hip[1]+LEGLEN*Math.sin(ang);
+  ctx.strokeStyle=color;ctx.lineWidth=w;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(hip[0],hip[1]);ctx.lineTo(px,py);ctx.stroke(); }
+
+function drawNeko(catX, groundY, s, dir, o){
+  o=o||{};
+  const frontA=o.frontA!=null?o.frontA:d2r(128);
+  const backA =o.backA !=null?o.backA :d2r(60);
+  const bodyRot=o.bodyRot||0, blink=o.blink||0, headExtra=o.headExtra||0;
+  const sx=catX - dir*s*222.9;
+  const sy=groundY - s*210 + (o.dy||0);
+  ctx.save();
+  ctx.translate(sx,sy); ctx.scale(dir*s, s);
+  // 剛体の全身回転（爪とぎ/伸び用・比率は保つ）
+  ctx.translate(235,208); ctx.rotate(bodyRot); ctx.translate(-235,-208);
+
+  // 尻尾（まっすぐ・剛体）
+  ctx.fillStyle=pal.tail; rr(258.6,181.77,287.12,188.07,3.15);
+  // 後脚（胴の後ろ）
+  legRod(Hb, backA, pal.legs, 7);
+  // 胴（歪めない）
+  ctx.fillStyle=pal.body; rr(210.74,177.04,263.5,204.6,13.78);
+  // 前脚（胴の前）
+  legRod(Hf, frontA, pal.legs, 7);
+  // 頭
+  ctx.save(); ctx.translate(0,headExtra);
+  ctx.fillStyle=pal.head; ctx.beginPath();ctx.arc(199.321,160.902,32.677,0,7);ctx.fill();
+  tri([172.69,141.24],[171.76,126.45],[184.80,133.19]);
+  tri([211.59,132.00],[196.77,131.65],[204.62,119.25]);
+  // 鼻
+  ctx.fillStyle=pal.nose; ctx.beginPath();ctx.ellipse(164.676,168.775,5.906,2.461,0,0,7);ctx.fill();
+  // 目（単眼・白点／まばたき）
   ctx.fillStyle=pal.eye;
-  for(const e of eyes){ ctx.beginPath();ctx.arc(cx+e[0],cy+e[1],3.1,0,7);ctx.fill(); }
-}
-function tail(pts,color,w){ ctx.strokeStyle=color;ctx.lineWidth=w;ctx.lineCap="round";
-  ctx.beginPath();ctx.moveTo(pts[0],pts[1]);ctx.bezierCurveTo(pts[2],pts[3],pts[4],pts[5],pts[6],pts[7]);ctx.stroke(); }
-
-// ---- POSES (draw in world; place with x, scale s, faceRight) ----
-function place(x, s, faceRight){ ctx.save(); ctx.translate(x, H*0.9); ctx.scale(faceRight? -s : s, s); }
-function unplace(){ ctx.restore(); }
-
-function poseWalk(x,s,faceRight,now,moving){
-  const w = now/200, stride = moving?9:0, lift=moving?4:0;
-  place(x,s,faceRight);
-  const sway=Math.sin(w*0.8)*8;
-  tail([35,-44, 58,-52, 66,-70+sway, 56,-84+sway], pal.tail,10);
-  // far legs
-  legAt(-18,w+Math.PI,stride,lift, hexA(pal.legs,0.6),6);
-  legAt( 26,w,        stride,lift, hexA(pal.legs,0.6),6);
-  // body
-  ctx.fillStyle=pal.body; roundRect(-35,-56,35,-24,14);
-  // near legs
-  legAt(-24,w,        stride,lift, pal.legs,7);
-  legAt( 30,w+Math.PI,stride,lift, pal.legs,7);
-  headEars(-46,-50,22,0);
-  face(-46,-50, Math.sin(w*1.7)*1.6, [[-2,-4]]);
-  unplace();
-}
-function legAt(hipX, phase, stride, lift){ /* placeholder */ }
-// real leg with color/width via closure params:
-function legAtC(hipX, phase, stride, lift, color, w){
-  const dx=Math.sin(phase)*stride, up=Math.max(0,Math.cos(phase))*lift;
-  leg(hipX,-24, hipX+dx, -up, color, w);
-}
-
-function poseSit(x,s,faceRight,now){
-  const w=now/700;
-  place(x,s,faceRight);
-  const sway=Math.sin(w)*10;
-  tail([28,-30, 52,-30, 60,-14+sway, 66,4+sway], pal.tail,10);
-  // haunch
-  ctx.fillStyle=pal.body; roundRect(-6,-52,34,-2,18);
-  // front legs down
-  leg(-14,-40,-16,0,pal.legs,7); leg(2,-40,2,0,pal.legs,7);
-  headEars(-14,-64,20, Math.sin(w*2)>0.96?4:0);
-  face(-14,-64, 0, [[-4,-4]]);
-  unplace();
-}
-
-function poseStretch(x,s,faceRight,p,now){
-  // p:0..1 amount of stretch (0=stand,1=full)
-  const a = Math.sin(p*Math.PI); // in and out
-  place(x,s,faceRight);
-  // rear up, front down — draw tilted body
-  ctx.save(); ctx.rotate(-0.32*a);
-  ctx.fillStyle=pal.body; roundRect(-34,-52,36,-22,15);
+  if(blink>0.5){ ctx.save();ctx.translate(198.929,162.083);ctx.scale(1,0.18);ctx.beginPath();ctx.arc(0,0,3.149,0,7);ctx.fill();ctx.restore(); }
+  else { ctx.beginPath();ctx.arc(198.929,162.083,3.149,0,7);ctx.fill(); }
   ctx.restore();
-  // rear legs straight (right side, raised hips)
-  leg(30,-30,34,0,pal.legs,7);
-  // front legs extended far forward, low
-  const reach = -30 - 34*a;
-  leg(-26,-30, reach, 0, pal.legs,7);
-  leg(-20,-28, reach+8, 0, hexA(pal.legs,0.6),6);
-  tail([34,-46, 54,-52, 62,-64, 66,-78], pal.tail,10);
-  // head low, near ground, reaching forward
-  const hx=-48-14*a, hy=-40+18*a;
-  headEars(hx,hy,20,0);
-  face(hx,hy,0,[[-2,-4]]);
-  unplace();
-}
 
-function poseScratch(x,s,faceRight,now){
-  const w=now/160;
-  place(x,s,faceRight);
-  // upright body against edge
-  ctx.save(); ctx.rotate(-0.15);
-  ctx.fillStyle=pal.body; roundRect(-20,-84,24,-16,17);
-  ctx.restore();
-  // back legs standing
-  leg(-6,-24,-8,0,pal.legs,7); leg(12,-22,14,0,pal.legs,7);
-  // front paws up, alternating scratch
-  const a1=Math.sin(w), a2=Math.sin(w+Math.PI);
-  leg(-14,-70,-30,-92+a1*10,pal.legs,7);
-  leg(-8,-72,-24,-92+a2*10,hexA(pal.legs,0.7),6);
-  tail([18,-30, 40,-24, 50,-8, 44,6], pal.tail,10);
-  headEars(-14,-92,19,3);
-  face(-14,-92,0,[[-3,-4]]);
-  unplace();
-}
-
-function poseJump(x,s,faceRight,p){
-  // p 0..1 across the arc; y lifts
-  place(x,s,faceRight);
-  const up = Math.sin(p*Math.PI)*70; // handled by caller via x; here lift body
-  ctx.translate(0,-up);
-  ctx.save(); ctx.rotate(-0.12);
-  ctx.fillStyle=pal.body; roundRect(-32,-52,34,-22,15);
-  ctx.restore();
-  // legs tucked
-  leg(-20,-28,-30,-14,pal.legs,7);
-  leg(24,-30,34,-16,pal.legs,7);
-  leg(-10,-26,-16,-10,hexA(pal.legs,0.6),6);
-  tail([34,-46, 60,-46, 70,-58, 70,-74], pal.tail,10);
-  headEars(-46,-52,21,4);
-  face(-46,-52,0,[[-2,-4]]);
-  unplace();
-}
-
-function poseRestCorner(now, left){
-  // frontal 伏せ (two eyes) in a corner, breathing
-  const w=now/900;
-  const s = Math.min(W,H)*0.0038;
-  const halfW=34*s, halfH=44*s, margin=W*0.04;
-  const cx = left? margin+halfW : W-margin-halfW;
-  const cy = H - margin - halfH;
-  ctx.save(); ctx.translate(cx,cy); ctx.scale(left? s : -s, s); ctx.translate(0,0);
-  const breath=1+Math.sin(w)*0.02, flick=Math.sin(w*1.3)*4;
-  // tail
-  tail([28,18, 46,18, 52,4+flick, 44,-6+flick], pal.tail,9);
-  // body loaf (breathing)
-  ctx.save(); ctx.scale(1,breath);
-  ctx.fillStyle=pal.body; roundRect(-34,-2,26,26,14); ctx.restore();
-  // head + ears
-  headEars(-4,-2,24,0);
-  // nose + two eyes
-  ctx.fillStyle=pal.nose; ctx.beginPath();ctx.ellipse(-4+Math.sin(w*1.6)*1,7,4,2,0,0,7);ctx.fill();
-  ctx.fillStyle=pal.eye;
-  ctx.beginPath();ctx.arc(-16,-6,3.1,0,7);ctx.fill();
-  ctx.beginPath();ctx.arc(8,-6,3.1,0,7);ctx.fill();
   ctx.restore();
 }
+function d2r(d){return d*Math.PI/180;}
 
-function posePeek(edgeRight, now){
-  // only head pokes in from a side edge, near lower area
-  const w=now/500;
-  const s=Math.min(W,H)*0.0018*1.1;
-  const y=H*0.62;
-  const x = edgeRight? W-2 : 2;
-  ctx.save(); ctx.translate(x,y); ctx.scale(edgeRight? -s : s, s);
-  const bob=Math.sin(w)*4;
-  ctx.translate(0,bob);
-  // a paw at the edge
-  leg(6,40,10,66,pal.legs,7);
-  headEars(18,0,22,Math.sin(w*2)>0.9?5:0);
-  face(18,0, 0, [[-2,-4]]);
-  ctx.restore();
+// ===== poses set options; cat roams as before =====
+function poseWalk(x,groundY,s,dir,now){ const w=now/200;
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(120+Math.sin(w)*24), backA:d2r(60+Math.sin(w+Math.PI)*24),
+    dy:-Math.abs(Math.sin(w))*3*s }); }
+function poseSit(x,groundY,s,dir,now){ const w=now/700; const bl=Math.sin(w*1.7)>0.93?1:0;
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(112), backA:d2r(66), blink:bl }); }
+function poseRest(x,groundY,s,dir,now){ const w=now/1400; const bl=(Math.sin(w)>-0.2)?1:0; // うとうと（ほぼ閉じ目）
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(110), backA:d2r(70), blink:bl }); }
+function poseStretch(x,groundY,s,dir,p,now){ const a=Math.sin(p*Math.PI);
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(128+a*40), backA:d2r(60-a*26), bodyRot:-0.10*a*dir, dy:a*4*s }); }
+function poseScratch(x,groundY,s,dir,now){ const w=now/150;
+  drawNeko(x,groundY,s,dir,{ bodyRot:-0.9*dir, frontA:d2r(-108+Math.sin(w)*20), backA:d2r(92) }); }
+function poseJump(x,groundY,s,dir,p){ const up=Math.sin(p*Math.PI)*80;
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(150), backA:d2r(34), bodyRot:-0.12*dir, dy:-up*s }); }
+function posePeek(edgeRight,groundY,s,now){ const w=now/500; const dir=edgeRight?-1:1;
+  const x = edgeRight? W - s*60 : s*60; // 頭だけ画面内、体は端の外へ
+  drawNeko(x, H*0.66, s, dir, { frontA:d2r(150), backA:d2r(70), dy:Math.sin(w)*3*s }); }
+
+function hexA(hex,a){const n=parseInt(hex.slice(1),16);return`rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;}
+
+// ===== director（前と同様に画面を行きかう） =====
+let cat={x:-200, faceRight:false};
+let queue=[], cur=null, t0=0;
+function S(){ return Math.min(W,H)*0.0022; }
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function ease(t){t=clamp(t,0,1);return t*t*(3-2*t);}
+function pushWalk(tx){queue.push({type:'walk',toX:tx});}
+function plan(){
+  const s=S(), pad=140*s, gy=H*0.86;
+  if(cat.x<-pad+5||cat.x>W+pad-5){ const inX=W*(0.2+Math.random()*0.6);
+    queue.push({type:'enter',toX:inX}); return; }
+  const k=Math.random();
+  if(k<0.16){ queue.push({type:'stretch',dur:3.4}); }
+  else if(k<0.32){ const e=Math.random()<0.5; pushWalk(e?W*0.92:W*0.08); queue.push({type:'scratch',dur:4.5,right:e}); }
+  else if(k<0.46){ const dir=cat.faceRight?1:-1; pushWalk(clamp(cat.x+dir*W*0.26,W*0.12,W*0.88)); queue.push({type:'jump',dur:1.0,dx:dir*W*0.16}); }
+  else if(k<0.58){ const e=Math.random()<0.5; queue.push({type:'goEdge',right:e}); queue.push({type:'peek',dur:4.0,right:e}); queue.push({type:'enter',toX:W*(0.3+Math.random()*0.4)}); }
+  else if(k<0.74){ queue.push({type:'rest',dur:8+Math.random()*8}); }
+  else { queue.push({type:'sit',dur:4+Math.random()*4}); }
+  if(Math.random()<0.5) pushWalk(W*(0.15+Math.random()*0.7));
 }
-
-function hexA(hex,a){ const n=parseInt(hex.slice(1),16); const r=(n>>16)&255,g=(n>>8)&255,b=n&255; return `rgba(${r},${g},${b},${a})`; }
-
-// ---- director ----
-let cat = {x:0, faceRight:false};
-let queue = [], cur=null, t0=0;
-let baseS=1.4;
-function calcScale(){ baseS = Math.min(W,H)*0.0016; return baseS; }
-
-function pushWalkTo(tx){ queue.push({type:'walk', toX:tx}); }
-function planMore(){
-  const s=calcScale();
-  const pad = 120*s;
-  const pick = Math.random();
-  if(cat.x < -pad+5 || cat.x > W+pad-5){ // off-screen → enter
-    const inX = W*(0.2+Math.random()*0.6);
-    cat.faceRight = cat.x < 0;
-    queue.push({type:'walk', toX:inX});
-    return;
-  }
-  if(pick<0.20){ queue.push({type:'stretch', dur:3.2}); }
-  else if(pick<0.38){ const e=Math.random()<0.5; pushWalkTo(e? W*0.9 : W*0.1); queue.push({type:'scratch', dur:4.5, right:e}); }
-  else if(pick<0.54){ const dir=cat.faceRight?1:-1; pushWalkTo(clamp(cat.x+dir*W*0.28, W*0.12, W*0.88)); queue.push({type:'jump', dur:1.0, dx:dir*W*0.18}); }
-  else if(pick<0.68){ const e=Math.random()<0.5; queue.push({type:'goEdge', right:e}); queue.push({type:'peek', dur:4.5, right:e}); queue.push({type:'enter'}); }
-  else if(pick<0.86){ const left=Math.random()<0.5; pushWalkTo(left? W*0.16 : W*0.84); queue.push({type:'rest', dur:9+Math.random()*7, left:left}); }
-  else { queue.push({type:'sit', dur:4+Math.random()*4}); }
-  // sometimes wander
-  if(Math.random()<0.5) pushWalkTo(W*(0.15+Math.random()*0.7));
+function start(){ cur=queue.shift(); t0=performance.now(); if(!cur)return; const s=S();
+  if(cur.type==='enter'){ cat.x=(Math.random()<0.5)?-140*s:W+140*s; cur.fromX=cat.x; cur.faceRight=cur.toX>cat.x; cat.faceRight=cur.faceRight; cur.dur=Math.max(0.6,Math.abs(cur.toX-cat.x)/(W*0.10)); cur.type='walk'; }
+  else if(cur.type==='walk'){ cur.fromX=cat.x; cur.faceRight=cur.toX>cat.x; cat.faceRight=cur.faceRight; cur.dur=Math.max(0.4,Math.abs(cur.toX-cat.x)/(W*0.10)); }
+  else if(cur.type==='goEdge'){ cur.fromX=cat.x; cur.toX=cur.right?W+150*s:-150*s; cur.faceRight=cur.right; cat.faceRight=cur.right; cur.dur=Math.max(0.6,Math.abs(cur.toX-cat.x)/(W*0.12)); }
+  else if(cur.type==='jump'){ cur.fromX=cat.x; cur.toX=clamp(cat.x+cur.dx,-20,W+20); cur.faceRight=cur.dx>0; cat.faceRight=cur.faceRight; }
+  else if(cur.type==='scratch'){ cat.faceRight=cur.right; }
 }
-function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
-
-function startCur(){
-  cur = queue.shift(); t0=performance.now();
-  if(!cur) return;
-  const s=calcScale();
-  if(cur.type==='walk'){ cur.fromX=cat.x; cur.faceRight = cur.toX>cat.x; cat.faceRight=cur.faceRight;
-    cur.dur = Math.max(0.4, Math.abs(cur.toX-cat.x)/(W*0.10)); }
-  if(cur.type==='goEdge'){ cur.fromX=cat.x; cur.toX = cur.right? W+140*s : -140*s; cur.faceRight=cur.right; cat.faceRight=cur.right;
-    cur.dur = Math.max(0.6, Math.abs(cur.toX-cat.x)/(W*0.12)); }
-  if(cur.type==='enter'){ cat.x = (Math.random()<0.5)? -140*s : W+140*s; cur.toX=W*(0.2+Math.random()*0.6); cur.fromX=cat.x; cur.faceRight=cur.toX>cat.x; cat.faceRight=cur.faceRight; cur.dur=Math.max(0.6, Math.abs(cur.toX-cat.x)/(W*0.10)); cur.type='walk'; }
-  if(cur.type==='jump'){ cur.fromX=cat.x; cur.toX=clamp(cat.x+cur.dx, -20, W+20); cur.faceRight=cur.dx>0; cat.faceRight=cur.faceRight; }
-  if(cur.type==='scratch'){ cat.faceRight=cur.right; }
-}
-
-const NAMEJP={walk:"あるく",stretch:"のび",scratch:"ツメ研ぎ",jump:"ジャンプ",peek:"のぞく",rest:"伏せて休む",sit:"すわる",goEdge:"…"};
+const JP={walk:"あるく",sit:"すわる",rest:"やすむ",stretch:"のび",scratch:"ツメ研ぎ",jump:"ジャンプ",peek:"のぞく"};
 
 function frame(now){
-  if(!cur || queue.length<0){}
-  if(!cur){ if(queue.length===0) planMore(); startCur(); }
-  const s=calcScale();
-  let p = cur ? (now - t0)/1000 / (cur.dur || 1) : 0;
-  // draw
+  if(!cur){ if(queue.length===0) plan(); start(); }
+  const s=S(), gy=H*0.86, dir=cat.faceRight?-1:1;
+  const p = cur? (now-t0)/1000/(cur.dur||1) : 0;
   drawBG();
-  nowLbl.textContent = NAMES[palKey] + " ・ " + (NAMEJP[cur?cur.type:'walk']||"");
-
+  nowLbl.textContent = NAMES[palKey]+" ・ "+(JP[cur?cur.type:'walk']||"");
   if(cur){
-    if(cur.type==='walk'){
-      const q=clamp(p,0,1); cat.x = cur.fromX + (cur.toX-cur.fromX)*ease(q);
-      poseWalk(cat.x, s, cat.faceRight, now, true);
-      if(p>=1){ cur=null; }
-    } else if(cur.type==='goEdge'){
-      const q=clamp(p,0,1); cat.x = cur.fromX + (cur.toX-cur.fromX)*ease(q);
-      poseWalk(cat.x, s, cat.faceRight, now, true);
-      if(p>=1){ cur=null; }
-    } else if(cur.type==='sit'){
-      poseSit(cat.x, s, cat.faceRight, now);
-      if(p>=1) cur=null;
-    } else if(cur.type==='stretch'){
-      poseStretch(cat.x, s, cat.faceRight, clamp(p,0,1), now);
-      if(p>=1) cur=null;
-    } else if(cur.type==='scratch'){
-      poseScratch(cat.x, s, cat.faceRight, now);
-      if(p>=1) cur=null;
-    } else if(cur.type==='jump'){
-      const q=clamp(p,0,1); cat.x = cur.fromX + (cur.toX-cur.fromX)*q;
-      poseJump(cat.x, s, cat.faceRight, q);
-      if(p>=1) cur=null;
-    } else if(cur.type==='peek'){
-      posePeek(cur.right, now);
-      if(p>=1){ cur=null; }
-    } else if(cur.type==='rest'){
-      poseRestCorner(now, cur.left);
-      if(p>=1) cur=null;
-    } else { cur=null; }
+    if(cur.type==='walk'){ const q=clamp(p,0,1); cat.x=cur.fromX+(cur.toX-cur.fromX)*ease(q); poseWalk(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
+    else if(cur.type==='goEdge'){ const q=clamp(p,0,1); cat.x=cur.fromX+(cur.toX-cur.fromX)*ease(q); poseWalk(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
+    else if(cur.type==='sit'){ poseSit(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
+    else if(cur.type==='rest'){ poseRest(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
+    else if(cur.type==='stretch'){ poseStretch(cat.x,gy,s,dir,clamp(p,0,1),now); if(p>=1)cur=null; }
+    else if(cur.type==='scratch'){ poseScratch(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
+    else if(cur.type==='jump'){ const q=clamp(p,0,1); cat.x=cur.fromX+(cur.toX-cur.fromX)*q; poseJump(cat.x,gy,s,dir,q); if(p>=1)cur=null; }
+    else if(cur.type==='peek'){ posePeek(cur.right,gy,s,now); if(p>=1)cur=null; }
+    else cur=null;
   }
   requestAnimationFrame(frame);
 }
-function ease(t){ t=clamp(t,0,1); return t*t*(3-2*t); }
 
-// fix leg drawing (use colored variant)
-poseWalk = function(x,s,faceRight,now,moving){
-  const w = now/200, stride = moving?9:0, lift=moving?4:0;
-  place(x,s,faceRight);
-  const sway=Math.sin(w*0.8)*8;
-  tail([35,-44, 58,-52, 66,-70+sway, 56,-84+sway], pal.tail,10);
-  legAtC(-18,w+Math.PI,stride,lift, hexA(pal.legs,0.6),6);
-  legAtC( 26,w,        stride,lift, hexA(pal.legs,0.6),6);
-  ctx.fillStyle=pal.body; roundRect(-35,-56,35,-24,14);
-  legAtC(-24,w,        stride,lift, pal.legs,7);
-  legAtC( 30,w+Math.PI,stride,lift, pal.legs,7);
-  headEars(-46,-50,22,0);
-  face(-46,-50, Math.sin(w*1.7)*1.6, [[-2,-4]]);
-  unplace();
-};
-
-// palette buttons
 const bar=document.getElementById('bar');
-Object.keys(PALETTES).forEach(k=>{
-  const b=document.createElement('button'); b.textContent=NAMES[k];
-  if(k==='clay') b.classList.add('on');
-  b.onclick=()=>{ pal=PALETTES[k]; palKey=k; [...bar.children].forEach(c=>c.classList.remove('on')); b.classList.add('on'); };
-  bar.appendChild(b);
-});
+Object.keys(PAL).forEach(k=>{ const b=document.createElement('button'); b.textContent=NAMES[k];
+  if(k==='clay')b.classList.add('on');
+  b.onclick=()=>{ pal=PAL[k]; palKey=k; [...bar.children].forEach(c=>c.classList.remove('on')); b.classList.add('on'); };
+  bar.appendChild(b); });
 
-resize(); calcScale(); cat.x=-200; requestAnimationFrame(frame);
+resize(); requestAnimationFrame(frame);
 </script>
 </body>
 </html>

@@ -103,13 +103,13 @@ function drawNeko(catX, groundY, s, dir, o){
 function d2r(d){return d*Math.PI/180;}
 
 // ===== poses set options; cat roams as before =====
-function poseWalk(x,groundY,s,dir,now){ const w=now/520; // ゆったり
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(120+Math.sin(w)*17), backA:d2r(62+Math.sin(w+Math.PI)*17),
-    tailA:d2r(-15)+Math.sin(w*0.5)*d2r(6), dy:-Math.abs(Math.sin(w))*2*s }); }
+function poseWalk(x,groundY,s,dir,now,fast){ const w=fast?now/230:now/470; const sw=fast?22:12; // トコトコ / 走り
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(94+Math.sin(w)*sw), backA:d2r(86+Math.sin(w+Math.PI)*sw),
+    tailA:d2r(fast?-24:-12)+Math.sin(w*0.5)*d2r(5), dy:-Math.abs(Math.sin(w))*(fast?3:1.4)*s }); }
 function poseSit(x,groundY,s,dir,now){ const w=now/700; const bl=Math.sin(w*1.7)>0.93?1:0;
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(112), backA:d2r(66), tailA:d2r(-4)+Math.sin(w*0.6)*d2r(4), blink:bl }); }
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(99), backA:d2r(83), tailA:d2r(-3)+Math.sin(w*0.6)*d2r(4), blink:bl }); }
 function poseRest(x,groundY,s,dir,now){ const w=now/1400; const bl=(Math.sin(w)>-0.2)?1:0; // うとうと
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(110), backA:d2r(70), tailA:d2r(9), blink:bl }); }
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(97), backA:d2r(85), tailA:d2r(8), blink:bl }); }
 function poseStretch(x,groundY,s,dir,p,now){ const a=Math.sin(p*Math.PI);
   drawNeko(x,groundY,s,dir,{ frontA:d2r(128+a*40), backA:d2r(60-a*26), tailA:d2r(-6-a*18), bodyRot:-0.10*a*dir, dy:a*4*s }); }
 function poseScratch(x,groundY,s,dir,now){ const w=now/300; // 研ぐ動作もゆっくりめ
@@ -129,27 +129,37 @@ function S(){ return Math.min(W,H)*0.0022; }
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function ease(t){t=clamp(t,0,1);return t*t*(3-2*t);}
 function pushWalk(tx){queue.push({type:'walk',toX:tx});}
+function cornerX(){ return Math.random()<0.5 ? W*0.12 : W*0.88; }
 function plan(){
-  const s=S(), pad=140*s, gy=H*0.86;
-  if(cat.x<-pad+5||cat.x>W+pad-5){ const inX=W*(0.2+Math.random()*0.6);
-    queue.push({type:'enter',toX:inX}); return; }
+  const s=S(), pad=140*s;
+  if(cat.x<-pad+5||cat.x>W+pad-5){ const cxr=cornerX();
+    queue.push({type:'enter',toX:cxr}); queue.push({type:'sit',dur:9+Math.random()*8}); return; }
   const k=Math.random();
-  if(k<0.16){ queue.push({type:'stretch',dur:3.4}); }
-  else if(k<0.32){ const e=Math.random()<0.5; pushWalk(e?W*0.92:W*0.08); queue.push({type:'scratch',dur:4.5,right:e}); }
-  else if(k<0.46){ const dir=cat.faceRight?1:-1; pushWalk(clamp(cat.x+dir*W*0.26,W*0.12,W*0.88)); queue.push({type:'jump',dur:1.0,dx:dir*W*0.16}); }
-  else if(k<0.58){ const e=Math.random()<0.5; queue.push({type:'goEdge',right:e}); queue.push({type:'peek',dur:4.0,right:e}); queue.push({type:'enter',toX:W*(0.3+Math.random()*0.4)}); }
-  else if(k<0.74){ queue.push({type:'rest',dur:8+Math.random()*8}); }
-  else { queue.push({type:'sit',dur:4+Math.random()*4}); }
-  if(Math.random()<0.5) pushWalk(W*(0.15+Math.random()*0.7));
+  if(k<0.46){ // 基本：隅に座る
+    pushWalk(cornerX()); queue.push({type:'sit',dur:10+Math.random()*10});
+  } else if(k<0.63){ // 顔だけのぞく
+    const e=Math.random()<0.5; queue.push({type:'goEdge',right:e}); queue.push({type:'peek',dur:5,right:e});
+    queue.push({type:'enter',toX:cornerX()}); queue.push({type:'sit',dur:7+Math.random()*7});
+  } else if(k<0.80){ // 端で爪とぎ→座る
+    const e=Math.random()<0.5; pushWalk(e?W*0.90:W*0.10); queue.push({type:'scratch',dur:5.5,right:e});
+    queue.push({type:'sit',dur:6+Math.random()*6});
+  } else if(k<0.90){ // トコトコ散歩→座る
+    pushWalk(W*(0.2+Math.random()*0.6)); queue.push({type:'sit',dur:5+Math.random()*5});
+  } else if(k<0.97){ // 走って横切る→隅で座る
+    queue.push({type:'run', right: cat.x < W/2}); queue.push({type:'enter',toX:cornerX()}); queue.push({type:'sit',dur:6+Math.random()*6});
+  } else { // たまに伸び
+    queue.push({type:'stretch',dur:3.4}); queue.push({type:'sit',dur:6});
+  }
 }
 function start(){ cur=queue.shift(); t0=performance.now(); if(!cur)return; const s=S();
-  if(cur.type==='enter'){ cat.x=(Math.random()<0.5)?-140*s:W+140*s; cur.fromX=cat.x; cur.faceRight=cur.toX>cat.x; cat.faceRight=cur.faceRight; cur.dur=Math.max(1.2,Math.abs(cur.toX-cat.x)/(W*0.045)); cur.type='walk'; }
+  if(cur.type==='enter'){ cat.x=(cur.toX<W/2)?-140*s:W+140*s; cur.fromX=cat.x; cur.faceRight=cur.toX>cat.x; cat.faceRight=cur.faceRight; cur.dur=Math.max(1.2,Math.abs(cur.toX-cat.x)/(W*0.045)); cur.type='walk'; }
   else if(cur.type==='walk'){ cur.fromX=cat.x; cur.faceRight=cur.toX>cat.x; cat.faceRight=cur.faceRight; cur.dur=Math.max(1.0,Math.abs(cur.toX-cat.x)/(W*0.045)); }
+  else if(cur.type==='run'){ cur.fromX=cat.x; cur.toX=cur.right?W+150*s:-150*s; cur.faceRight=cur.right; cat.faceRight=cur.right; cur.dur=Math.max(0.8,Math.abs(cur.toX-cat.x)/(W*0.16)); }
   else if(cur.type==='goEdge'){ cur.fromX=cat.x; cur.toX=cur.right?W+150*s:-150*s; cur.faceRight=cur.right; cat.faceRight=cur.right; cur.dur=Math.max(1.0,Math.abs(cur.toX-cat.x)/(W*0.05)); }
-  else if(cur.type==='jump'){ cur.fromX=cat.x; cur.toX=clamp(cat.x+cur.dx,-20,W+20); cur.faceRight=cur.dx>0; cat.faceRight=cur.faceRight; }
   else if(cur.type==='scratch'){ cat.faceRight=cur.right; }
+  else if(cur.type==='sit'||cur.type==='rest'){ cat.faceRight = cat.x < W*0.5; }
 }
-const JP={walk:"あるく",sit:"すわる",rest:"やすむ",stretch:"のび",scratch:"ツメ研ぎ",jump:"ジャンプ",peek:"のぞく"};
+const JP={walk:"あるく",run:"はしる",sit:"すわる",rest:"やすむ",stretch:"のび",scratch:"ツメ研ぎ",jump:"ジャンプ",peek:"のぞく"};
 
 function frame(now){
   if(!cur){ if(queue.length===0) plan(); start(); }
@@ -158,8 +168,9 @@ function frame(now){
   drawBG();
   nowLbl.textContent = NAMES[palKey]+" ・ "+(JP[cur?cur.type:'walk']||"");
   if(cur){
-    if(cur.type==='walk'){ const q=clamp(p,0,1); cat.x=cur.fromX+(cur.toX-cur.fromX)*ease(q); poseWalk(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
-    else if(cur.type==='goEdge'){ const q=clamp(p,0,1); cat.x=cur.fromX+(cur.toX-cur.fromX)*ease(q); poseWalk(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
+    if(cur.type==='walk'){ const q=clamp(p,0,1); cat.x=cur.fromX+(cur.toX-cur.fromX)*ease(q); poseWalk(cat.x,gy,s,dir,now,false); if(p>=1)cur=null; }
+    else if(cur.type==='run'){ const q=clamp(p,0,1); cat.x=cur.fromX+(cur.toX-cur.fromX)*ease(q); poseWalk(cat.x,gy,s,dir,now,true); if(p>=1)cur=null; }
+    else if(cur.type==='goEdge'){ const q=clamp(p,0,1); cat.x=cur.fromX+(cur.toX-cur.fromX)*ease(q); poseWalk(cat.x,gy,s,dir,now,false); if(p>=1)cur=null; }
     else if(cur.type==='sit'){ poseSit(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
     else if(cur.type==='rest'){ poseRest(cat.x,gy,s,dir,now); if(p>=1)cur=null; }
     else if(cur.type==='stretch'){ poseStretch(cat.x,gy,s,dir,clamp(p,0,1),now); if(p>=1)cur=null; }

@@ -110,7 +110,7 @@ function poseWalk(x,groundY,s,dir,now,fast){ const w=fast?now/230:now/470; const
 // 座る：neko-3 の座り姿そのもの（あなたの原案パスを使用）。頭上げ・お尻接地・前足踏ん張り。
 const SIT_CX=320, SIT_CY=256, SIT_FEET=309;
 function poseSit(x,groundY,s0,dir,now){
-  const s = s0*1.1;
+  const s = s0*(22/32.677); // 頭を歩きと同じ大きさに揃える（歩きの頭r22 / neko-3の頭r32.677）
   ctx.save();
   ctx.translate(x, groundY - (SIT_FEET-SIT_CY)*s);
   ctx.scale(dir*s, s);
@@ -134,16 +134,16 @@ function poseSit(x,groundY,s0,dir,now){
   ctx.fillStyle=pal.eye; ctx.beginPath(); ctx.arc(308.305,243.696,3.15,0,7); ctx.fill();
   ctx.restore();
 }
-// 寝る：正面・目を閉じた丸まりロール（neko-3準拠／目は広め・胴は小さめ・鼻なし）
+// 寝る：正面・目を閉じた丸まりロール（目は広め・胴は小さめ・鼻/足なし・尻尾は胴の後ろ）
 function poseSleep(x,groundY,s,dir,now){ const w=now/2400; const breath=1+Math.sin(w)*0.02;
   ctx.save(); ctx.translate(x,groundY); ctx.scale(s, s); // 正面（左右反転しない）
-  // 体（小さめのロール・呼吸でわずかに上下）
+  // 尻尾（胴体の後ろ・後ろから少しだけのぞく）
+  ctx.strokeStyle=pal.tail; ctx.lineWidth=9; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(8,-9); ctx.lineTo(34,-13); ctx.stroke();
+  // 体（小さめのロール・呼吸でわずかに上下／尻尾を隠す）
   ctx.save(); ctx.translate(0,-9); ctx.scale(1,breath);
   ctx.fillStyle=pal.body; rr(-24,-10,24,10,10); ctx.restore();
-  // 前足を軽くたたむ
-  ctx.strokeStyle=pal.legs; ctx.lineWidth=8; ctx.lineCap="round";
-  ctx.beginPath(); ctx.moveTo(3,-4); ctx.lineTo(21,-1); ctx.stroke();
-  // 頭（大きめ）
+  // 頭
   ctx.fillStyle=pal.head; ctx.beginPath(); ctx.arc(0,-38,24,0,7); ctx.fill();
   // 耳
   ctx.beginPath();ctx.moveTo(-18,-52);ctx.lineTo(-16,-70);ctx.lineTo(-2,-56);ctx.closePath();ctx.fill();

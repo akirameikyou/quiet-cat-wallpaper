@@ -59,7 +59,7 @@ function drawBG(){ ctx.fillStyle=pal.bg; ctx.fillRect(0,0,W,H);
 // ===== neko-1 の猫（比率そのまま／単眼／まっすぐ尻尾／2本の剛体脚） =====
 // local: head(199.3,160.9,r32.7), body capsule(210.7..263.5,177..204.6), tail(258.6..287.1,181.8..188.1)
 // nose(164.7,168.8), eye(198.9,162.1), 前股(221,198) 後股(253,196), 脚長21（固定）
-const Hf=[221,198], Hb=[253,196], LEGLEN=21;
+const Hf=[221,197], Hb=[253,197], LEGLEN=21;
 function tri(a,b,c){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.lineTo(c[0],c[1]);ctx.closePath();ctx.fill();}
 function rr(l,t,r,b,rad){ctx.beginPath();ctx.moveTo(l+rad,t);ctx.arcTo(r,t,r,b,rad);ctx.arcTo(r,b,l,b,rad);ctx.arcTo(l,b,l,t,rad);ctx.arcTo(l,t,r,t,rad);ctx.closePath();ctx.fill();}
 function legRod(hip,ang,color,w){ const px=hip[0]+LEGLEN*Math.cos(ang), py=hip[1]+LEGLEN*Math.sin(ang);
@@ -75,7 +75,8 @@ function drawNeko(catX, groundY, s, dir, o){
   ctx.save();
   ctx.translate(sx,sy); ctx.scale(dir*s, s);
   // 剛体の全身回転（爪とぎ/伸び用・比率は保つ）
-  ctx.translate(235,208); ctx.rotate(bodyRot); ctx.translate(-235,-208);
+  const px=o.px!=null?o.px:235, py=o.py!=null?o.py:208;
+  ctx.translate(px,py); ctx.rotate(bodyRot); ctx.translate(-px,-py);
 
   // 尻尾（まっすぐ・剛体・根元で上下に回るだけ／曲げない）
   ctx.save(); ctx.translate(258.6,185); ctx.rotate(tailA); ctx.translate(-258.6,-185);
@@ -104,16 +105,16 @@ function d2r(d){return d*Math.PI/180;}
 
 // ===== poses set options; cat roams as before =====
 function poseWalk(x,groundY,s,dir,now,fast){ const w=fast?now/230:now/470; const sw=fast?22:12; // トコトコ / 走り
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(94+Math.sin(w)*sw), backA:d2r(86+Math.sin(w+Math.PI)*sw),
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(96+Math.sin(w)*sw), backA:d2r(84-Math.sin(w)*sw),
     tailA:d2r(fast?-24:-12)+Math.sin(w*0.5)*d2r(5), dy:-Math.abs(Math.sin(w))*(fast?3:1.4)*s }); }
 function poseSit(x,groundY,s,dir,now){ const w=now/700; const bl=Math.sin(w*1.7)>0.93?1:0;
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(99), backA:d2r(83), tailA:d2r(-3)+Math.sin(w*0.6)*d2r(4), blink:bl }); }
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(96), backA:d2r(84), tailA:d2r(-3)+Math.sin(w*0.6)*d2r(4), blink:bl }); }
 function poseRest(x,groundY,s,dir,now){ const w=now/1400; const bl=(Math.sin(w)>-0.2)?1:0; // うとうと
-  drawNeko(x,groundY,s,dir,{ frontA:d2r(97), backA:d2r(85), tailA:d2r(8), blink:bl }); }
+  drawNeko(x,groundY,s,dir,{ frontA:d2r(96), backA:d2r(84), tailA:d2r(8), blink:bl }); }
 function poseStretch(x,groundY,s,dir,p,now){ const a=Math.sin(p*Math.PI);
   drawNeko(x,groundY,s,dir,{ frontA:d2r(128+a*40), backA:d2r(60-a*26), tailA:d2r(-6-a*18), bodyRot:-0.10*a*dir, dy:a*4*s }); }
-function poseScratch(x,groundY,s,dir,now){ const w=now/300; // 研ぐ動作もゆっくりめ
-  drawNeko(x,groundY,s,dir,{ bodyRot:-0.9*dir, frontA:d2r(-108+Math.sin(w)*18), backA:d2r(92), tailA:d2r(-24) }); }
+function poseScratch(x,groundY,s,dir,now){ const w=now/300; // 後ろ足を地面につけたまま立ち上がる
+  drawNeko(x,groundY,s,dir,{ bodyRot:-0.75*dir, px:255, py:218, frontA:d2r(-104+Math.sin(w)*16), backA:d2r(90), tailA:d2r(-20) }); }
 function poseJump(x,groundY,s,dir,p){ const up=Math.sin(p*Math.PI)*80;
   drawNeko(x,groundY,s,dir,{ frontA:d2r(150), backA:d2r(34), tailA:d2r(-28), bodyRot:-0.12*dir, dy:-up*s }); }
 function posePeek(edgeRight,groundY,s,now){ const w=now/500; const dir=edgeRight?-1:1;
@@ -143,12 +144,10 @@ function plan(){
   } else if(k<0.80){ // 端で爪とぎ→座る
     const e=Math.random()<0.5; pushWalk(e?W*0.90:W*0.10); queue.push({type:'scratch',dur:5.5,right:e});
     queue.push({type:'sit',dur:6+Math.random()*6});
-  } else if(k<0.90){ // トコトコ散歩→座る
+  } else if(k<0.91){ // トコトコ散歩→座る
     pushWalk(W*(0.2+Math.random()*0.6)); queue.push({type:'sit',dur:5+Math.random()*5});
-  } else if(k<0.97){ // 走って横切る→隅で座る
+  } else { // 走って横切る→隅で座る
     queue.push({type:'run', right: cat.x < W/2}); queue.push({type:'enter',toX:cornerX()}); queue.push({type:'sit',dur:6+Math.random()*6});
-  } else { // たまに伸び
-    queue.push({type:'stretch',dur:3.4}); queue.push({type:'sit',dur:6});
   }
 }
 function start(){ cur=queue.shift(); t0=performance.now(); if(!cur)return; const s=S();

@@ -61,25 +61,29 @@
 </head>
 <body>
   <div class="wrap">
-    <span class="ver">試作 v0.1</span>
+    <span class="ver">試作 v0.2</span>
     <h1>気配の猫</h1>
-    <p class="lead">黒に近い夜の背景を、小さな猫がときどき横切るAndroidライブ壁紙です。</p>
+    <p class="lead">静かな色の背景を、小さな猫がときどき横切るAndroidライブ壁紙です。背景の色は選べます。</p>
 
-    <div class="stage" aria-hidden="true">
-      <div class="ground"></div>
-      <div class="cat">🐈‍⬛</div>
+    <div class="stage" aria-hidden="true" style="background:#d69f77">
+      <div class="cat" style="filter:none">🐈</div>
     </div>
 
-    <a class="dl" href="app-debug.apk?v=0.1" download>APKをダウンロード</a>
-    <div class="sub">Android専用・約14KB・通信/広告/権限要求なし</div>
+    <a class="dl" href="app-debug.apk?v=0.2" download>APKをダウンロード</a>
+    <div class="sub">Android専用・約17KB・通信/広告/権限要求なし</div>
 
     <h2>この試作の動き</h2>
     <ul>
-      <li>52秒を一つの静かな周期とします。</li>
-      <li>約10秒間は何も現れません。</li>
-      <li>猫がゆっくり入り、中央付近で約9秒座ります。</li>
-      <li>再び歩き、画面外へ消えます。次の周期は反対側から。</li>
-      <li>ホーム画面が見えていないときは描画を止めます。</li>
+      <li>背景は固定・静かな色（うるさくなく、電池にやさしい設計）。</li>
+      <li>約1分をひと巡りとし、猫がゆっくり横切ります。</li>
+      <li>歩いている時だけ描画し、いない間・見えていない間は止まります。</li>
+      <li>猫は頭・胴・足・尻尾が別々の色のマルチカラー。</li>
+    </ul>
+
+    <h2>背景の色を選ぶ</h2>
+    <ul>
+      <li>クレイ／控えめな点柄／オートミール／ダスティブルー／セージ／すみ。</li>
+      <li>アプリの「背景をえらぶ」、または壁紙設定の歯車から変更できます。</li>
     </ul>
 
     <h2>入れかた</h2>

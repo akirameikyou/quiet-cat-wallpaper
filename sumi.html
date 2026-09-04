@@ -27,6 +27,7 @@ const INKS=[ "#2b2620","#2b2620","#2b2620","#2b2620","#2a2a2e" ];
 // 紙（地＋粒）を一度だけ作って毎フレーム敷く
 const paper=document.createElement('canvas'), pctx=paper.getContext('2d');
 function buildPaper(){
+  if(W<1||H<1) return;
   paper.width=W; paper.height=H;
   pctx.setTransform(1,0,0,1,0,0);
   pctx.fillStyle=PAPER; pctx.fillRect(0,0,W,H);
@@ -121,13 +122,14 @@ function maybeAuto(now){
 
 let last=performance.now();
 function frame(now){
+  requestAnimationFrame(frame);            // 何があってもループを止めない
+  if(W<1||H<1||paper.width<1) return;
   const dt=Math.min(0.05,Math.max(0.001,(now-last)/1000)); last=now;
   ctx.globalCompositeOperation='source-over';
   ctx.drawImage(paper,0,0,W,H);            // 紙を敷き直す（溜まらない）
   maybeAuto(now);
   for(const s of stains){ s.age+=dt; s.draw(); }
   stains=stains.filter(s=>!s.dead);
-  requestAnimationFrame(frame);
 }
 
 function pos(e){ const t=e.touches?e.touches[0]:e; return [t.clientX,t.clientY]; }

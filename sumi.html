@@ -50,16 +50,17 @@ class Drop{
   constructor(x,y,ink,scale){
     this.x=x;this.y=y;this.ink=ink;this.age=0;this.life=rnd(2.6,4.6);
     this.parts=[];
-    const n=Math.floor(rnd(90,150));
+    const n=Math.floor(rnd(200,300));
     for(let i=0;i<n;i++){
+      const far=Math.pow(Math.random(),0.7); // 遠くまで行く粒／近くで止まる粒（縁のむら）
       this.parts.push({
         a:rnd(0,Math.PI*2), r:rnd(0,3),
-        v:rnd(0.35,1.5)*scale, curl:rnd(-1,1), ph:rnd(0,6.28),
-        w:rnd(7,20)*scale, br:rnd(0.5,1.0) // 明るさ（枝ごとのむら）
+        v:(0.3+far*2.0)*scale, curl:rnd(-1,1), ph:rnd(0,6.28),
+        w:rnd(9,26)*scale*(0.7+far*0.6), br:rnd(0.45,1.0) // 遠い粒ほど淡く大きく
       });
     }
     // 落ちた瞬間の芯
-    stamp(x,y, rnd(10,16)*scale, ink, 0.11);
+    stamp(x,y, rnd(9,15)*scale, ink, 0.09);
     // 飛沫
     if(Math.random()<0.8){ const m=Math.floor(rnd(2,6));
       for(let i=0;i<m;i++){ const a=rnd(0,6.28), d=rnd(14,44)*scale;
@@ -96,7 +97,7 @@ function stamp(x,y,r,ink,alpha){
 let drops=[];
 function drop(x,y){
   const ink=INKS[Math.floor(Math.random()*INKS.length)];
-  const scale=rnd(0.8,1.6)*(Math.min(W,H)/430);
+  const scale=rnd(1.0,2.0)*(Math.min(W,H)/430);
   drops.push(new Drop(x,y,ink,scale));
 }
 

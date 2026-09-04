@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>墨 — 水のにじみ</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#efe7d7}
+  canvas{display:block;width:100vw;height:100vh;touch-action:none}
+  #hint{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+    color:#6b6152;font:13px/1.6 "Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
+    letter-spacing:.14em;opacity:.0;transition:opacity 1.2s;pointer-events:none}
+  #hint.show{opacity:.66}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hint">ふれると、墨がおちる</div>
+<script>
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1;
+const PAPER="#efe7d7";
+const INKS=[ "#1b1e25","#1b1e25","#1b1e25","#243350","#4a3726","#33463a" ]; // 主に墨、時々藍・褐・苔
+function resize(){ DPR=Math.min(2,window.devicePixelRatio||1);
+  W=window.innerWidth; H=window.innerHeight;
+  cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.fillStyle=PAPER; ctx.fillRect(0,0,W,H);
+  drawGrain();
+}
+window.addEventListener('resize',()=>{ /* 保持のため軽く */ });
+
+// 和紙の粒（薄く一度だけ敷く）
+function drawGrain(){
+  ctx.save(); ctx.globalAlpha=.04;
+  for(let i=0;i<Math.min(2600,W*H/500);i++){
+    const x=Math.random()*W,y=Math.random()*H, r=Math.random()*1.1;
+    ctx.fillStyle=Math.random()<.5?"#000":"#fff";
+    ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
+  }
+  ctx.restore();
+}
+
+const rnd=(a,b)=>a+Math.random()*(b-a);
+function hexA(hex,a){ const n=parseInt(hex.slice(1),16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; }
+
+// にじみのひとしずく
+class Drop{
+  constructor(x,y,ink,scale){
+    this.x=x;this.y=y;this.ink=ink;this.age=0;this.life=rnd(2.6,4.6);
+    this.parts=[];
+    const n=Math.floor(rnd(60,110));
+    for(let i=0;i<n;i++){
+      this.parts.push({
+        a:rnd(0,Math.PI*2), r:rnd(0,3),
+        v:rnd(0.5,1.7)*scale, curl:rnd(-1,1), ph:rnd(0,6.28),
+        w:rnd(5,14)*scale, br:rnd(0.6,1.0) // 明るさ（枝ごとのむら）
+      });
+    }
+    // 落ちた瞬間の芯
+    stamp(x,y, rnd(10,16)*scale, ink, 0.16);
+    // 飛沫
+    if(Math.random()<0.8){ const m=Math.floor(rnd(2,6));
+      for(let i=0;i<m;i++){ const a=rnd(0,6.28), d=rnd(14,40)*scale;
+        stamp(x+Math.cos(a)*d, y+Math.sin(a)*d, rnd(1.5,4)*scale, ink, 0.10); } }
+  }
+  step(dt,now){
+    this.age+=dt;
+    const spread=Math.max(0,1-this.age/this.life);
+    for(const p of this.parts){
+      p.a += Math.sin(now*0.0007 + p.ph)*0.10*p.curl; // ゆらぎ（枝分かれ）
+      p.r += p.v * spread * dt*60;
+    }
+  }
+  draw(){
+    const fade=Math.max(0,1-this.age/this.life);
+    for(const p of this.parts){
+      const x=this.x+Math.cos(p.a)*p.r, y=this.y+Math.sin(p.a)*p.r;
+      stamp(x,y, p.w, this.ink, 0.028*(0.5+fade)*p.br);
+    }
+  }
+  get dead(){ return this.age>this.life; }
+}
+
+function stamp(x,y,r,ink,alpha){
+  ctx.globalCompositeOperation='multiply';
+  const g=ctx.createRadialGradient(x,y,0,x,y,r);
+  g.addColorStop(0, hexA(ink,alpha));
+  g.addColorStop(1, hexA(ink,0));
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  ctx.globalCompositeOperation='source-over';
+}
+
+let drops=[];
+function drop(x,y){
+  const ink=INKS[Math.floor(Math.random()*INKS.length)];
+  const scale=rnd(0.8,1.6)*(Math.min(W,H)/430);
+  drops.push(new Drop(x,y,ink,scale));
+}
+
+// ひとりでに、時々落ちる
+let nextAuto=performance.now()+2000;
+function maybeAuto(now){
+  if(now>nextAuto){
+    drop(rnd(W*0.12,W*0.88), rnd(H*0.12,H*0.85));
+    nextAuto = now + rnd(4200,9000);
+  }
+}
+
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(0.05,Math.max(0.001,(now-last)/1000)); last=now;
+  // 紙が乾くように、ゆっくり褪せる
+  ctx.globalCompositeOperation='source-over';
+  ctx.globalAlpha=0.014; ctx.fillStyle=PAPER; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1;
+  maybeAuto(now);
+  for(const d of drops){ d.step(dt,now); d.draw(); }
+  drops=drops.filter(d=>!d.dead);
+  requestAnimationFrame(frame);
+}
+
+// 入力
+function pos(e){ const t=e.touches?e.touches[0]:e; return [t.clientX, t.clientY]; }
+cv.addEventListener('pointerdown', e=>{ const [x,y]=pos(e); drop(x,y);
+  // 続けて撫でると点々と落ちる
+});
+cv.addEventListener('pointermove', e=>{ if(e.pressure>0 || (e.buttons&1)){ if(Math.random()<0.25){ const [x,y]=pos(e); drop(x,y); } } });
+
+resize();
+window.addEventListener('resize',resize);
+// 最初の一滴＆ヒント
+setTimeout(()=>drop(W*0.5,H*0.42), 600);
+const hint=document.getElementById('hint');
+setTimeout(()=>hint.classList.add('show'),1200);
+setTimeout(()=>hint.classList.remove('show'),6000);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

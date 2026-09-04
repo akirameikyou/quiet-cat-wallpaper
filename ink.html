@@ -42,16 +42,16 @@ function curl(x,y,t){ const e=1.6;
 
 // 墨の粒：軌跡(トレイル)を保持し、毎フレーム紙に描き直す
 const parts=[];
-const MAX=1000, TRAIL=34;
+const MAX=800, TRAIL=64;
 function emit(x,y,strong){
-  const n= strong? Math.floor(rnd(140,190)) : Math.floor(rnd(70,110));
-  const sink=rnd(4,10);
+  const n= strong? Math.floor(rnd(130,180)) : Math.floor(rnd(60,100));
+  const sink=rnd(10,22);
   for(let i=0;i<n;i++){
-    const a=rnd(0,TAU), sp=Math.pow(Math.random(),1.5)*rnd(8,42);
+    const a=rnd(0,TAU), sp=Math.pow(Math.random(),1.5)*rnd(6,26);
     const r=Math.pow(Math.random(),0.6)*(strong?11:7);
     const sx=x+Math.cos(a)*r, sy=y+Math.sin(a)*r;
-    parts.push({ x:sx,y:sy, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp*0.7+rnd(-4,9),
-      pts:[{x:sx,y:sy}], age:0, life:rnd(4.5,9.5),
+    parts.push({ x:sx,y:sy, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp*0.6+rnd(6,18),
+      pts:[{x:sx,y:sy}], age:0, life:rnd(7,14),
       w:Math.random()<0.14? rnd(1.6,2.8): rnd(0.6,1.3),
       sink, br:rnd(0.55,1) });
   }
@@ -70,12 +70,12 @@ function frame(now){
 
   maybeAuto(now);
 
-  const spd=105;
+  const spd=120;
   // まず動かして軌跡を伸ばす
   for(const p of parts){
     const [cx,cy]=curl(p.x,p.y,t);
-    p.vx=p.vx*0.86 + cx*spd*0.14;
-    p.vy=p.vy*0.86 + (cy*spd + p.sink)*0.14;
+    p.vx=p.vx*0.93 + cx*spd*0.10;
+    p.vy=p.vy*0.93 + (cy*spd + p.sink)*0.10;
     p.x+=p.vx*dt; p.y+=p.vy*dt; p.age+=dt;
     p.pts.push({x:p.x,y:p.y});
     if(p.pts.length>TRAIL) p.pts.shift();

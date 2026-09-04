@@ -93,13 +93,14 @@ class Bloom{
     this.driftA=rnd(0,TAU); this.driftV=rnd(2,7)*scale;
     // 花弁（触手）— 強弱のむら＝墨の偏り
     this.petals=[];
-    const m=Math.floor(rnd(16,26));
+    const m=Math.floor(rnd(9,14));
+    const spin=(Math.random()<.5?1:-1);   // 渦の向きは揃える（同じ回転）
     for(let i=0;i<m;i++){
-      this.petals.push({ a:(i/m)*TAU+rnd(-0.08,0.08),
-        len:rnd(0.6,1.35), hook:rnd(0.5,1.4)*(Math.random()<.5?1:-1),
-        w:rnd(1.0,2.6), br:Math.pow(rnd(0.25,1),1.2), wob:rnd(0.05,0.16), ph:rnd(0,TAU) });
+      this.petals.push({ a:(i/m)*TAU+rnd(-0.05,0.05),
+        len:rnd(0.75,1.3), hook:rnd(0.6,1.1)*spin,
+        w:rnd(1.8,3.6), br:Math.pow(rnd(0.4,1),1.1), wob:rnd(0.03,0.08), ph:rnd(0,TAU) });
     }
-    this.wash=rnd(0.5,0.95);
+    this.wash=rnd(0.6,1.0);
   }
   env(){ const fin=0.7, fout=this.life*0.45;
     if(this.age<fin) return easeOut(this.age/fin);
@@ -117,8 +118,8 @@ class Bloom{
     // 淡い本体（中心やや濃く、外は溶ける）
     const wr=R*1.15;
     const wg=ctx.createRadialGradient(cx,cy,R*0.15,cx,cy,wr);
-    wg.addColorStop(0, rgba(r,g,b,0.10*a*this.wash));
-    wg.addColorStop(0.6, rgba(r,g,b,0.03*a*this.wash));
+    wg.addColorStop(0, rgba(r,g,b,0.13*a*this.wash));
+    wg.addColorStop(0.6, rgba(r,g,b,0.04*a*this.wash));
     wg.addColorStop(1, rgba(r,g,b,0));
     ctx.fillStyle=wg; ctx.beginPath(); ctx.arc(cx,cy,wr,0,TAU); ctx.fill();
 
@@ -126,7 +127,7 @@ class Bloom{
     const r0=R*0.28, swirl=(0.5+0.7*grow);
     for(const p of this.petals){
       const L=R*p.len;
-      ctx.lineCap='round'; ctx.strokeStyle=rgba(r,g,b, 0.075*a*p.br);
+      ctx.lineCap='round'; ctx.strokeStyle=rgba(r,g,b, 0.11*a*p.br);
       ctx.lineWidth=p.w;
       ctx.beginPath();
       const steps=9;

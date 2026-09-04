@@ -24,53 +24,38 @@ const PAPER="#f4f1e8";
 function resize(){ DPR=Math.min(2,window.devicePixelRatio||1);
   W=window.innerWidth; H=window.innerHeight;
   cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
-  ctx.setTransform(DPR,0,0,DPR,0,0);
-  ctx.fillStyle=PAPER; ctx.fillRect(0,0,W,H);
-}
+  ctx.setTransform(DPR,0,0,DPR,0,0); }
 window.addEventListener('resize',resize);
 const rnd=(a,b)=>a+Math.random()*(b-a);
 const TAU=Math.PI*2;
 
-// ---- 乱流の場（curl noise：発散ゼロ＝自然な渦・非対称）----
-function pot(x,y,t){
-  const s=0.0052;
+// 乱流の場（curl noise：発散ゼロ＝自然な渦・非対称）
+function pot(x,y,t){ const s=0.0052;
   return  Math.sin(x*s + t*0.14)*Math.cos(y*s*1.3 - t*0.10)
         + 0.5*Math.sin(x*s*2.1 - t*0.11 + 1.7)*Math.cos(y*s*1.9 + t*0.07)
         + 0.25*Math.sin(x*s*4.4 + y*s*3.0 + t*0.18)
-        + 0.16*Math.cos(x*s*7.7 - y*s*6.1 - t*0.13);
-}
+        + 0.16*Math.cos(x*s*7.7 - y*s*6.1 - t*0.13); }
 function curl(x,y,t){ const e=1.6;
   const dPdy=(pot(x,y+e,t)-pot(x,y-e,t))/(2*e);
   const dPdx=(pot(x+e,y,t)-pot(x-e,y,t))/(2*e);
-  return [dPdy, -dPdx];
-}
+  return [dPdy,-dPdx]; }
 
-// ---- 墨の粒（軌跡が糸になる。乱流で枝分かれ・折り重なる）----
+// 墨の粒：軌跡(トレイル)を保持し、毎フレーム紙に描き直す
 const parts=[];
-const MAX=2200;
+const MAX=1000, TRAIL=34;
 function emit(x,y,strong){
-  const n= strong? Math.floor(rnd(220,320)) : Math.floor(rnd(110,180));
-  const baseSink=rnd(4,10);            // ゆっくり沈む
-  // クラゲの頭（濃いかたまり）
-  head(x,y, strong?rnd(9,15):rnd(6,10));
+  const n= strong? Math.floor(rnd(140,190)) : Math.floor(rnd(70,110));
+  const sink=rnd(4,10);
   for(let i=0;i<n;i++){
     const a=rnd(0,TAU), sp=Math.pow(Math.random(),1.5)*rnd(8,42);
     const r=Math.pow(Math.random(),0.6)*(strong?11:7);
-    parts.push({
-      x:x+Math.cos(a)*r, y:y+Math.sin(a)*r, px:0,py:0,
-      vx:Math.cos(a)*sp, vy:Math.sin(a)*sp*0.7 + rnd(-4,9),
-      age:0, life:rnd(4,9),
-      w:Math.random()<0.14? rnd(1.4,2.6) : rnd(0.5,1.2), // 太い糸は少数
-      sink:baseSink, br:rnd(0.5,1)
-    });
+    const sx=x+Math.cos(a)*r, sy=y+Math.sin(a)*r;
+    parts.push({ x:sx,y:sy, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp*0.7+rnd(-4,9),
+      pts:[{x:sx,y:sy}], age:0, life:rnd(4.5,9.5),
+      w:Math.random()<0.14? rnd(1.6,2.8): rnd(0.6,1.3),
+      sink, br:rnd(0.55,1) });
   }
   while(parts.length>MAX) parts.shift();
-}
-function head(x,y,r){
-  ctx.save(); ctx.globalCompositeOperation='multiply';
-  const g=ctx.createRadialGradient(x,y,0,x,y,r);
-  g.addColorStop(0,"rgba(20,20,24,0.16)"); g.addColorStop(1,"rgba(20,20,24,0)");
-  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill(); ctx.restore();
 }
 
 let last=performance.now();
@@ -79,44 +64,50 @@ function frame(now){
   if(W<1||H<1) return;
   const dt=Math.min(0.045,Math.max(0.001,(now-last)/1000)); last=now;
   const t=now*0.001;
-  // 紙が乾くように、ごくゆっくり褪せる
-  ctx.globalCompositeOperation='source-over';
-  ctx.globalAlpha=0.012; ctx.fillStyle=PAPER; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1;
+  // 紙を塗り直す（常にきれいな地）
+  ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1;
+  ctx.fillStyle=PAPER; ctx.fillRect(0,0,W,H);
 
   maybeAuto(now);
 
-  ctx.globalCompositeOperation='multiply';
-  ctx.lineCap='round';
-  const spd=95;
+  const spd=105;
+  // まず動かして軌跡を伸ばす
   for(const p of parts){
     const [cx,cy]=curl(p.x,p.y,t);
-    // 乱流へ寄せつつ運動量も残す＝糸が braid する
-    p.vx = p.vx*0.86 + cx*spd*0.14;
-    p.vy = p.vy*0.86 + (cy*spd + p.sink)*0.14;
-    p.px=p.x; p.py=p.y;
+    p.vx=p.vx*0.86 + cx*spd*0.14;
+    p.vy=p.vy*0.86 + (cy*spd + p.sink)*0.14;
     p.x+=p.vx*dt; p.y+=p.vy*dt; p.age+=dt;
-    const k=1-p.age/p.life; if(k<=0) continue;
-    // 糸（細く濃い）
-    ctx.strokeStyle=`rgba(22,22,26,${0.055*k*p.br})`;
-    ctx.lineWidth=p.w*(0.6+0.4*k);
-    ctx.beginPath(); ctx.moveTo(p.px,p.py); ctx.lineTo(p.x,p.y); ctx.stroke();
-    // ときどき、糸のまわりに薄い灰の霧（拡散）
-    if(Math.random()<0.012){
-      const rr=p.w*rnd(5,11);
-      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,rr);
-      g.addColorStop(0,`rgba(30,30,34,${0.014*k})`); g.addColorStop(1,"rgba(30,30,34,0)");
+    p.pts.push({x:p.x,y:p.y});
+    if(p.pts.length>TRAIL) p.pts.shift();
+  }
+  // 描画（multiplyで重なりが濃くなる＝墨らしい）
+  ctx.globalCompositeOperation='multiply'; ctx.lineCap='round'; ctx.lineJoin='round';
+  for(const p of parts){
+    const fade=Math.max(0,1-p.age/p.life);
+    const L=p.pts.length; if(L<2) continue;
+    for(let i=1;i<L;i++){
+      const u=i/L;                       // 先端(新しい)ほど濃く
+      const A=0.5*fade*p.br*(0.25+0.75*u);
+      if(A<0.01) continue;
+      ctx.strokeStyle=`rgba(24,24,28,${A})`;
+      ctx.lineWidth=p.w*(0.4+0.6*u);
+      const a=p.pts[i-1], b=p.pts[i];
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    }
+    // 先端まわりの淡い灰の霧（拡散）
+    if(Math.random()<0.06){
+      const rr=p.w*rnd(6,12), g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,rr);
+      g.addColorStop(0,`rgba(34,34,38,${0.05*fade})`); g.addColorStop(1,"rgba(34,34,38,0)");
       ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,rr,0,TAU); ctx.fill();
     }
   }
   ctx.globalCompositeOperation='source-over';
-  // 寿命切れを掃除
-  for(let i=parts.length-1;i>=0;i--){ if(parts[i].age>parts[i].life) parts.splice(i,1); }
+  for(let i=parts.length-1;i>=0;i--) if(parts[i].age>parts[i].life) parts.splice(i,1);
 }
 
-// ひとりでに、まれに
 let nextAuto=performance.now()+2200;
 function maybeAuto(now){ if(now>nextAuto){
-  emit(rnd(W*0.2,W*0.8), rnd(H*0.15,H*0.55), false);
+  emit(rnd(W*0.2,W*0.8), rnd(H*0.18,H*0.6), false);
   nextAuto=now+rnd(4500,8500); } }
 
 function pos(e){ const t=e.touches?e.touches[0]:e; return [t.clientX,t.clientY]; }

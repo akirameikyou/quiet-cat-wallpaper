@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>水墨 — したたり</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#e7ede9}
+  canvas{display:block;width:100vw;height:100vh;touch-action:none}
+  #hint{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+    color:#5f6f6b;font:13px/1.6 "Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
+    letter-spacing:.16em;opacity:0;transition:opacity 1.4s;pointer-events:none}
+  #hint.show{opacity:.55}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hint">ふれると、したたる</div>
+<script>
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){ DPR=Math.min(2,window.devicePixelRatio||1);
+  W=window.innerWidth; H=window.innerHeight;
+  cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0); }
+window.addEventListener('resize',resize);
+
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const easeOut=t=>1-Math.pow(1-clamp(t,0,1),3);
+const TAU=Math.PI*2;
+function rgba(r,g,b,a){ return `rgba(${r|0},${g|0},${b|0},${a})`; }
+
+// ---- 水の色（上から覗く静かな水面）----
+function drawWater(now){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,"#eef3ef"); g.addColorStop(0.6,"#e2e9e5"); g.addColorStop(1,"#d6ded9");
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  // ほのかに揺れる光（生きた気配）
+  ctx.save(); ctx.globalCompositeOperation='screen';
+  for(let i=0;i<3;i++){
+    const cx=W*(0.3+0.4*Math.sin(now*0.00007+i*2.1))+i*W*0.1;
+    const cy=H*(0.35+0.3*Math.cos(now*0.00005+i*1.6));
+    const r=Math.max(W,H)*0.5;
+    const rg=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+    rg.addColorStop(0,"rgba(255,255,255,0.05)"); rg.addColorStop(1,"rgba(255,255,255,0)");
+    ctx.fillStyle=rg; ctx.fillRect(0,0,W,H);
+  }
+  ctx.restore();
+}
+
+// ---- 波紋（同心円・指数減衰・先端に毛細さざ波）----
+class Ripple{
+  constructor(x,y,mom){ this.x=x;this.y=y;this.mom=mom;this.age=0;this.life=2.8; }
+  draw(){
+    const t=this.age; if(t>this.life) return;
+    const base=Math.min(W,H);
+    ctx.save(); ctx.globalCompositeOperation='multiply';
+    const rings=5;
+    for(let i=0;i<rings;i++){
+      const delay=i*0.10; const at=t-delay; if(at<=0) continue;
+      const r=base*0.02 + at*base*0.16;      // 外へ広がる
+      const decay=Math.exp(-at*1.5)*Math.exp(-i*0.55)*this.mom;
+      if(decay<0.01) continue;
+      ctx.lineWidth=Math.max(0.6, 2.0*(1-i*0.12));
+      ctx.strokeStyle=rgba(70,88,84, 0.16*decay);
+      ctx.beginPath(); ctx.ellipse(this.x,this.y,r,r*0.96,0,0,TAU); ctx.stroke();
+      // 内側の淡い光の縁（水のもり上がり）
+      ctx.strokeStyle=rgba(255,255,255, 0.10*decay);
+      ctx.beginPath(); ctx.ellipse(this.x,this.y,r-1.5,(r-1.5)*0.96,0,0,TAU); ctx.stroke();
+    }
+    // 先端の毛細さざ波（速く・淡く）
+    const cr=base*0.02+t*base*0.26, cd=Math.exp(-t*2.6)*this.mom;
+    if(cd>0.01){ ctx.lineWidth=0.6; ctx.strokeStyle=rgba(80,96,92,0.10*cd);
+      ctx.beginPath(); ctx.ellipse(this.x,this.y,cr,cr*0.96,0,0,TAU); ctx.stroke(); }
+    ctx.restore();
+  }
+  get dead(){ return this.age>this.life; }
+}
+
+// ---- 墨の渦（花弁状の触手がくるりとほどける）----
+const INK=[ [40,46,58],[40,46,58],[38,42,52],[44,52,70] ]; // 藍みの墨
+class Bloom{
+  constructor(x,y,scale){
+    this.x=x;this.y=y;this.age=0;
+    this.scale=scale;
+    this.growT=rnd(2.2,3.4); this.life=rnd(8,12);
+    const c=INK[Math.floor(Math.random()*INK.length)];
+    this.col=c;
+    this.maxR=rnd(30,64)*scale;         // 渦の輪の広がり
+    this.descent=rnd(6,16)*scale;       // ゆっくり沈む
+    this.driftA=rnd(0,TAU); this.driftV=rnd(2,7)*scale;
+    // 花弁（触手）— 強弱のむら＝墨の偏り
+    this.petals=[];
+    const m=Math.floor(rnd(16,26));
+    for(let i=0;i<m;i++){
+      this.petals.push({ a:(i/m)*TAU+rnd(-0.08,0.08),
+        len:rnd(0.6,1.35), hook:rnd(0.5,1.4)*(Math.random()<.5?1:-1),
+        w:rnd(1.0,2.6), br:Math.pow(rnd(0.25,1),1.2), wob:rnd(0.05,0.16), ph:rnd(0,TAU) });
+    }
+    this.wash=rnd(0.5,0.95);
+  }
+  env(){ const fin=0.7, fout=this.life*0.45;
+    if(this.age<fin) return easeOut(this.age/fin);
+    if(this.age>this.life-fout) return clamp((this.life-this.age)/fout,0,1);
+    return 1; }
+  draw(now){
+    const a=this.env(); if(a<=0) return;
+    const grow=easeOut(this.age/this.growT);
+    const R=this.maxR*grow;
+    const cx=this.x + Math.cos(this.driftA)*this.driftV*this.age*0.12;
+    const cy=this.y + Math.sin(this.driftA)*this.driftV*this.age*0.12 + this.descent*grow;
+    const [r,g,b]=this.col;
+
+    ctx.save(); ctx.globalCompositeOperation='multiply';
+    // 淡い本体（中心やや濃く、外は溶ける）
+    const wr=R*1.15;
+    const wg=ctx.createRadialGradient(cx,cy,R*0.15,cx,cy,wr);
+    wg.addColorStop(0, rgba(r,g,b,0.10*a*this.wash));
+    wg.addColorStop(0.6, rgba(r,g,b,0.03*a*this.wash));
+    wg.addColorStop(1, rgba(r,g,b,0));
+    ctx.fillStyle=wg; ctx.beginPath(); ctx.arc(cx,cy,wr,0,TAU); ctx.fill();
+
+    // 花弁の触手（内側リングから外へ、先で鉤状にほどける）
+    const r0=R*0.28, swirl=(0.5+0.7*grow);
+    for(const p of this.petals){
+      const L=R*p.len;
+      ctx.lineCap='round'; ctx.strokeStyle=rgba(r,g,b, 0.075*a*p.br);
+      ctx.lineWidth=p.w;
+      ctx.beginPath();
+      const steps=9;
+      for(let s=0;s<=steps;s++){
+        const u=s/steps;
+        const rad=r0 + u*L;
+        // 渦：先へ行くほど接線方向へ鉤 + かすかな揺れ
+        const ang=p.a + p.hook*(u*u)*swirl*0.9 + Math.sin(u*3+p.ph+now*0.0006)*p.wob*(0.4+0.6*u);
+        const x=cx+Math.cos(ang)*rad, y=cy+Math.sin(ang)*rad;
+        if(s===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  get dead(){ return this.age>this.life; }
+}
+
+let ripples=[], blooms=[];
+function splash(x,y,mom,scale){
+  ripples.push(new Ripple(x,y,mom));
+  blooms.push(new Bloom(x,y,scale));
+  if(blooms.length>6) blooms.shift();
+  // ときどき、寄り添うもう一滴（孤independentにしない）
+  if(Math.random()<0.28){
+    const dx=rnd(-1,1)*Math.min(W,H)*0.06, dy=rnd(-1,1)*Math.min(W,H)*0.06;
+    setTimeout(()=>{ ripples.push(new Ripple(x+dx,y+dy,mom*0.7));
+      blooms.push(new Bloom(x+dx,y+dy,scale*0.7)); }, rnd(500,1400));
+  }
+}
+function dropAt(x,y,strong){
+  const scale=(strong?rnd(1.0,1.6):rnd(0.7,1.1))*(Math.min(W,H)/460);
+  splash(x,y, strong?1.0:0.8, scale);
+}
+
+// ひとりでに、まれに（間隔は長め）
+let nextAuto=performance.now()+2200;
+function maybeAuto(now){ if(now>nextAuto){
+  dropAt(rnd(W*0.16,W*0.84), rnd(H*0.16,H*0.8), false);
+  nextAuto=now+rnd(6000,11000); } }
+
+let last=performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  if(W<1||H<1) return;
+  const dt=Math.min(0.05,Math.max(0.001,(now-last)/1000)); last=now;
+  drawWater(now);
+  maybeAuto(now);
+  for(const r of ripples){ r.age+=dt; r.draw(); }
+  for(const b of blooms){ b.age+=dt; b.draw(now); }
+  ripples=ripples.filter(r=>!r.dead);
+  blooms=blooms.filter(b=>!b.dead);
+}
+
+function pos(e){ const t=e.touches?e.touches[0]:e; return [t.clientX,t.clientY]; }
+cv.addEventListener('pointerdown', e=>{ const [x,y]=pos(e); dropAt(x,y,true); });
+let lastMove=0;
+cv.addEventListener('pointermove', e=>{ if((e.buttons&1)||e.pressure>0){
+  const t=performance.now(); if(t-lastMove>200){ lastMove=t; const [x,y]=pos(e); dropAt(x,y,false); } }});
+
+resize();
+setTimeout(()=>dropAt(W*0.5,H*0.44,true),700);
+const hint=document.getElementById('hint');
+setTimeout(()=>hint.classList.add('show'),1300);
+setTimeout(()=>hint.classList.remove('show'),6500);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

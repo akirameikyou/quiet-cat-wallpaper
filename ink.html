@@ -50,15 +50,15 @@ const parts=[];
 const MAX=2200;
 function emit(x,y,strong){
   const n= strong? Math.floor(rnd(220,320)) : Math.floor(rnd(110,180));
-  const baseSink=rnd(8,20);            // ゆっくり沈む
+  const baseSink=rnd(4,10);            // ゆっくり沈む
   // クラゲの頭（濃いかたまり）
   head(x,y, strong?rnd(9,15):rnd(6,10));
   for(let i=0;i<n;i++){
-    const a=rnd(0,TAU), sp=Math.pow(Math.random(),1.6)*rnd(20,80);
-    const r=Math.pow(Math.random(),0.6)*(strong?12:8);
+    const a=rnd(0,TAU), sp=Math.pow(Math.random(),1.5)*rnd(8,42);
+    const r=Math.pow(Math.random(),0.6)*(strong?11:7);
     parts.push({
       x:x+Math.cos(a)*r, y:y+Math.sin(a)*r, px:0,py:0,
-      vx:Math.cos(a)*sp, vy:Math.sin(a)*sp + rnd(3,14),
+      vx:Math.cos(a)*sp, vy:Math.sin(a)*sp*0.7 + rnd(-4,9),
       age:0, life:rnd(4,9),
       w:Math.random()<0.14? rnd(1.4,2.6) : rnd(0.5,1.2), // 太い糸は少数
       sink:baseSink, br:rnd(0.5,1)
@@ -81,7 +81,7 @@ function frame(now){
   const t=now*0.001;
   // 紙が乾くように、ごくゆっくり褪せる
   ctx.globalCompositeOperation='source-over';
-  ctx.globalAlpha=0.006; ctx.fillStyle=PAPER; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1;
+  ctx.globalAlpha=0.012; ctx.fillStyle=PAPER; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1;
 
   maybeAuto(now);
 
@@ -91,8 +91,8 @@ function frame(now){
   for(const p of parts){
     const [cx,cy]=curl(p.x,p.y,t);
     // 乱流へ寄せつつ運動量も残す＝糸が braid する
-    p.vx = p.vx*0.90 + cx*spd*0.10;
-    p.vy = p.vy*0.90 + (cy*spd + p.sink)*0.10;
+    p.vx = p.vx*0.86 + cx*spd*0.14;
+    p.vy = p.vy*0.86 + (cy*spd + p.sink)*0.14;
     p.px=p.x; p.py=p.y;
     p.x+=p.vx*dt; p.y+=p.vy*dt; p.age+=dt;
     const k=1-p.age/p.life; if(k<=0) continue;
@@ -101,10 +101,10 @@ function frame(now){
     ctx.lineWidth=p.w*(0.6+0.4*k);
     ctx.beginPath(); ctx.moveTo(p.px,p.py); ctx.lineTo(p.x,p.y); ctx.stroke();
     // ときどき、糸のまわりに薄い灰の霧（拡散）
-    if(Math.random()<0.020){
+    if(Math.random()<0.012){
       const rr=p.w*rnd(5,11);
       const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,rr);
-      g.addColorStop(0,`rgba(30,30,34,${0.020*k})`); g.addColorStop(1,"rgba(30,30,34,0)");
+      g.addColorStop(0,`rgba(30,30,34,${0.014*k})`); g.addColorStop(1,"rgba(30,30,34,0)");
       ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,rr,0,TAU); ctx.fill();
     }
   }

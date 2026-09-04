@@ -3,139 +3,144 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>墨 — 水のにじみ</title>
+<title>にじみ — 淡墨</title>
 <style>
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;overflow:hidden;background:#efe7d7}
+  html,body{margin:0;height:100%;overflow:hidden;background:#f3ecdd}
   canvas{display:block;width:100vw;height:100vh;touch-action:none}
   #hint{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
-    color:#6b6152;font:13px/1.6 "Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
-    letter-spacing:.14em;opacity:.0;transition:opacity 1.2s;pointer-events:none}
-  #hint.show{opacity:.66}
+    color:#8a7f6c;font:13px/1.6 "Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
+    letter-spacing:.16em;opacity:0;transition:opacity 1.4s;pointer-events:none}
+  #hint.show{opacity:.6}
 </style>
 </head>
 <body>
 <canvas id="cv"></canvas>
-<div id="hint">ふれると、墨がおちる</div>
+<div id="hint">ふれると、にじむ</div>
 <script>
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 let W=0,H=0,DPR=1;
-const PAPER="#efe7d7";
-const INKS=[ "#1b1e25","#1b1e25","#1b1e25","#243350","#4a3726","#33463a" ]; // 主に墨、時々藍・褐・苔
+const PAPER="#f3ecdd";
+// 墨はほぼ温かい黒。ごくまれに、わずかな冷たみ（斑ではなく全体の下地）
+const INKS=[ "#2b2620","#2b2620","#2b2620","#2b2620","#2a2a2e" ];
+
+// 紙（地＋粒）を一度だけ作って毎フレーム敷く
+const paper=document.createElement('canvas'), pctx=paper.getContext('2d');
+function buildPaper(){
+  paper.width=W; paper.height=H;
+  pctx.setTransform(1,0,0,1,0,0);
+  pctx.fillStyle=PAPER; pctx.fillRect(0,0,W,H);
+  pctx.save(); pctx.globalAlpha=.05;
+  const n=Math.min(3000, (W*H)/420);
+  for(let i=0;i<n;i++){ const x=Math.random()*W,y=Math.random()*H,r=Math.random()*1.1;
+    pctx.fillStyle=Math.random()<.5?"#000":"#fff"; pctx.beginPath();pctx.arc(x,y,r,0,7);pctx.fill(); }
+  pctx.restore();
+  // ほのかな四隅の陰り
+  const g=pctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.3, W/2,H/2,Math.max(W,H)*0.7);
+  g.addColorStop(0,"rgba(0,0,0,0)"); g.addColorStop(1,"rgba(60,50,35,0.05)");
+  pctx.fillStyle=g; pctx.fillRect(0,0,W,H);
+}
 function resize(){ DPR=Math.min(2,window.devicePixelRatio||1);
   W=window.innerWidth; H=window.innerHeight;
   cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
   ctx.setTransform(DPR,0,0,DPR,0,0);
-  ctx.fillStyle=PAPER; ctx.fillRect(0,0,W,H);
-  drawGrain();
+  buildPaper();
 }
-window.addEventListener('resize',()=>{ /* 保持のため軽く */ });
-
-// 和紙の粒（薄く一度だけ敷く）
-function drawGrain(){
-  ctx.save(); ctx.globalAlpha=.04;
-  for(let i=0;i<Math.min(2600,W*H/500);i++){
-    const x=Math.random()*W,y=Math.random()*H, r=Math.random()*1.1;
-    ctx.fillStyle=Math.random()<.5?"#000":"#fff";
-    ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
-  }
-  ctx.restore();
-}
+window.addEventListener('resize',resize);
 
 const rnd=(a,b)=>a+Math.random()*(b-a);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const easeOut=t=>1-Math.pow(1-clamp(t,0,1),3);
 function hexA(hex,a){ const n=parseInt(hex.slice(1),16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; }
 
-// にじみのひとしずく
-class Drop{
-  constructor(x,y,ink,scale){
-    this.x=x;this.y=y;this.ink=ink;this.age=0;this.life=rnd(2.6,4.6);
-    this.parts=[];
-    const n=Math.floor(rnd(200,300));
-    for(let i=0;i<n;i++){
-      const far=Math.pow(Math.random(),0.7); // 遠くまで行く粒／近くで止まる粒（縁のむら）
-      this.parts.push({
-        a:rnd(0,Math.PI*2), r:rnd(0,3),
-        v:(0.3+far*2.0)*scale, curl:rnd(-1,1), ph:rnd(0,6.28),
-        w:rnd(9,26)*scale*(0.7+far*0.6), br:rnd(0.45,1.0) // 遠い粒ほど淡く大きく
-      });
+// にじみ一滴：淡い滲み＋紙の繊維に沿う毛細の枝。溜めず、毎フレーム描き直して淡く保つ。
+class Stain{
+  constructor(x,y,scale){
+    this.x=x; this.y=y; this.age=0;
+    this.ink=INKS[Math.floor(Math.random()*INKS.length)];
+    this.maxR=rnd(34,88)*scale;
+    this.growT=rnd(1.0,1.9);
+    this.life=rnd(16,30);
+    this.strength=rnd(0.7,1.05);
+    // 毛細（繊維に沿ってほどける縁）
+    this.fibers=[];
+    const m=Math.floor(rnd(12,22));
+    for(let i=0;i<m;i++){
+      this.fibers.push({ a:rnd(0,Math.PI*2), len:rnd(0.75,1.35), w:rnd(0.5,1.7),
+        wander:rnd(0.10,0.28), ph:rnd(0,6.28), br:rnd(0.5,1) });
     }
-    // 落ちた瞬間の芯
-    stamp(x,y, rnd(9,15)*scale, ink, 0.09);
-    // 飛沫
-    if(Math.random()<0.8){ const m=Math.floor(rnd(2,6));
-      for(let i=0;i<m;i++){ const a=rnd(0,6.28), d=rnd(14,44)*scale;
-        stamp(x+Math.cos(a)*d, y+Math.sin(a)*d, rnd(1.5,4)*scale, ink, 0.07); } }
+    // 芯のわずかな濃み
+    this.coreR=rnd(4,9)*scale;
   }
-  step(dt,now){
-    this.age+=dt;
-    const spread=Math.max(0,1-this.age/this.life);
-    for(const p of this.parts){
-      p.a += Math.sin(now*0.0007 + p.ph)*0.10*p.curl; // ゆらぎ（枝分かれ）
-      p.r += p.v * spread * dt*60;
-    }
-  }
+  env(){ const fin=0.6, fout=6.0;
+    if(this.age<fin) return easeOut(this.age/fin);
+    if(this.age>this.life-fout) return clamp((this.life-this.age)/fout,0,1);
+    return 1; }
   draw(){
-    const fade=Math.max(0,1-this.age/this.life);
-    for(const p of this.parts){
-      const x=this.x+Math.cos(p.a)*p.r, y=this.y+Math.sin(p.a)*p.r;
-      stamp(x,y, p.w, this.ink, 0.020*(0.5+fade)*p.br);
+    const a=this.env(); if(a<=0) return;
+    const rr=this.maxR*easeOut(this.age/this.growT);
+    const A=a*this.strength;
+    ctx.globalCompositeOperation='multiply';
+    // 本体の淡いにじみ（中心やや濃く、縁は消える）
+    const g=ctx.createRadialGradient(this.x,this.y, this.coreR, this.x,this.y, rr);
+    g.addColorStop(0, hexA(this.ink, 0.13*A));
+    g.addColorStop(0.55, hexA(this.ink, 0.05*A));
+    g.addColorStop(1, hexA(this.ink, 0));
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(this.x,this.y,rr,0,7); ctx.fill();
+    // 毛細の枝（縁を羽のようにほどく）
+    ctx.lineCap='round';
+    for(const f of this.fibers){
+      const len=rr*f.len; if(len<2) continue;
+      ctx.strokeStyle=hexA(this.ink, 0.06*A*f.br);
+      ctx.lineWidth=f.w;
+      let px=this.x, py=this.y, ang=f.a;
+      const steps=6; ctx.beginPath(); ctx.moveTo(px,py);
+      for(let s=1;s<=steps;s++){ ang+=f.wander*Math.sin(s*1.6+f.ph);
+        const seg=len/steps*(1 - (s/steps)*0.3); // 先ほど細く短く
+        px+=Math.cos(ang)*seg; py+=Math.sin(ang)*seg; ctx.lineTo(px,py); }
+      ctx.stroke();
     }
+    ctx.globalCompositeOperation='source-over';
   }
   get dead(){ return this.age>this.life; }
 }
 
-function stamp(x,y,r,ink,alpha){
-  ctx.globalCompositeOperation='multiply';
-  const g=ctx.createRadialGradient(x,y,0,x,y,r);
-  g.addColorStop(0, hexA(ink,alpha));
-  g.addColorStop(1, hexA(ink,0));
-  ctx.fillStyle=g;
-  ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
-  ctx.globalCompositeOperation='source-over';
+let stains=[];
+function addStain(x,y,small){
+  const scale=(small?rnd(0.4,0.7):rnd(0.8,1.5))*(Math.min(W,H)/460);
+  stains.push(new Stain(x,y,scale));
+  if(stains.length>7) stains.shift(); // 溜めない
 }
 
-let drops=[];
-function drop(x,y){
-  const ink=INKS[Math.floor(Math.random()*INKS.length)];
-  const scale=rnd(1.0,2.0)*(Math.min(W,H)/430);
-  drops.push(new Drop(x,y,ink,scale));
-}
-
-// ひとりでに、時々落ちる
-let nextAuto=performance.now()+2000;
+// ひとりでに、まれに落ちる（間隔は長め）
+let nextAuto=performance.now()+2600;
 function maybeAuto(now){
-  if(now>nextAuto){
-    drop(rnd(W*0.12,W*0.88), rnd(H*0.12,H*0.85));
-    nextAuto = now + rnd(4200,9000);
-  }
+  if(now>nextAuto){ addStain(rnd(W*0.14,W*0.86), rnd(H*0.14,H*0.82), false);
+    nextAuto=now+rnd(7000,13000); }
 }
 
 let last=performance.now();
 function frame(now){
   const dt=Math.min(0.05,Math.max(0.001,(now-last)/1000)); last=now;
-  // 紙が乾くように、ゆっくり褪せる
   ctx.globalCompositeOperation='source-over';
-  ctx.globalAlpha=0.005; ctx.fillStyle=PAPER; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1;
+  ctx.drawImage(paper,0,0,W,H);            // 紙を敷き直す（溜まらない）
   maybeAuto(now);
-  for(const d of drops){ d.step(dt,now); d.draw(); }
-  drops=drops.filter(d=>!d.dead);
+  for(const s of stains){ s.age+=dt; s.draw(); }
+  stains=stains.filter(s=>!s.dead);
   requestAnimationFrame(frame);
 }
 
-// 入力
-function pos(e){ const t=e.touches?e.touches[0]:e; return [t.clientX, t.clientY]; }
-cv.addEventListener('pointerdown', e=>{ const [x,y]=pos(e); drop(x,y);
-  // 続けて撫でると点々と落ちる
-});
-cv.addEventListener('pointermove', e=>{ if(e.pressure>0 || (e.buttons&1)){ if(Math.random()<0.25){ const [x,y]=pos(e); drop(x,y); } } });
+function pos(e){ const t=e.touches?e.touches[0]:e; return [t.clientX,t.clientY]; }
+cv.addEventListener('pointerdown', e=>{ const [x,y]=pos(e); addStain(x,y,false); });
+let lastMove=0;
+cv.addEventListener('pointermove', e=>{ if((e.buttons&1)||e.pressure>0){
+  const t=performance.now(); if(t-lastMove>120){ lastMove=t; const [x,y]=pos(e); addStain(x,y,true); } }});
 
 resize();
-window.addEventListener('resize',resize);
-// 最初の一滴＆ヒント
-setTimeout(()=>drop(W*0.5,H*0.42), 600);
+setTimeout(()=>addStain(W*0.5,H*0.42,false),700);
 const hint=document.getElementById('hint');
-setTimeout(()=>hint.classList.add('show'),1200);
-setTimeout(()=>hint.classList.remove('show'),6000);
+setTimeout(()=>hint.classList.add('show'),1300);
+setTimeout(()=>hint.classList.remove('show'),6500);
 requestAnimationFrame(frame);
 </script>
 </body>
